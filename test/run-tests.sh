@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+# run-tests.sh — shell test suite for claude-auto-resume Phase 0.
+# Runs the lib.sh state suite against every available JSON engine
+# (jq, python3, text) plus cross-engine interop, timestamp helpers,
+# fake-claude behavior, and an on-stop.sh smoke test.
+# Exit 0 iff everything passed.
+set -u
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN="$HERE/../plugin"
+PASS=0
+FAIL=0
+
+ok()   { PASS=$((PASS + 1)); printf 'ok   - %s\n' "$1"; }
+fail() { FAIL=$((FAIL + 1)); printf 'FAIL - %s\n' "$1"; shift; while [ $# -gt 0 ]; do printf '       %s\n' "$1"; shift; done; }
+
+t_eq() { # name expected actual
+  if [ "$2" = "$3" ]; then ok "$1"; else fail "$1" "expected: $2" "actual:   $3"; fi
+}
+
+t_contains() { # name needle haystack
+  case "$3" in
+    *"$2"*) ok "$1" ;;
+    *) fail "$1" "missing:  $2" "in:       $3" ;;
+  esac
+}
+
+# ---------------------------------------------------------- syntax checks --
+
+for f in "$PLUGIN"/scripts/*.sh "$HERE"/fake-claude.sh "$HERE"/run-tests.sh; do
+  if bash -n "$f" 2>/dev/null; then
+    ok "syntax: $(basename "$f")"
+  else
+    fail "syntax: $(basename "$f")" "$(bash -n "$f" 2>&1 | head -2)"
+  fi
+done
+
+# ----------------------------------------------------- per-engine state suite --
+
+engine_available() {
+  case "$1" in
+    jq)      command -v jq >/dev/null 2>&1 ;;
+    python3) command -v python3 >/dev/null 2>&1 ;;
+    text)    true ;;
+  esac
+}
+
+state_suite() {
+  local eng="$1"
+  local tmp
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/ar-test-XXXXXX")"
+  export CLAUDE_AUTO_RESUME_STATE="$tmp/state.json"
+  export CLAUDE_AUTO_RESUME_LOG_DIR="$tmp/logs"
+  export AR_JSON_ENGINE="$eng"
+  # shellcheck disable=SC1091
+  . "$PLUGIN/scripts/lib.sh"
+
+  local WS="/Users/example/project one"
+  local WS2="/Users/example/other"
+
+  # 1. init
+  ar_state_init
+  [ -f "$CLAUDE_AUTO_RESUME_STATE" ] && ok "$eng: init creates state file" || fail "$eng: init creates state file"
+  t_contains "$eng: init writes version 1" '"version": 1' "$(cat "$CLAUDE_AUTO_RESUME_STATE")"
+
+  # 2. upsert + get round trip (incl. a value with quotes and equals sign)
+  local PROMPT='Build the "thing" x=1 and keep going'
+  ar_task_upsert "$WS" "status=running" "importance=critical" "original_prompt=$PROMPT" \
+    || fail "$eng: upsert returns success"
+  t_eq "$eng: get status after upsert" "running" "$(ar_task_get "$WS" status)"
+  t_eq "$eng: get importance after upsert" "critical" "$(ar_task_get "$WS" importance)"
+  t_eq "$eng: get prompt round-trips quotes" "$PROMPT" "$(ar_task_get "$WS" original_prompt)"
+  t_eq "$eng: defaults filled (max_resumes)" "3" "$(ar_task_get "$WS" max_resumes)"
+  t_eq "$eng: defaults filled (progress_file)" "PROGRESS.md" "$(ar_task_get "$WS" progress_file)"
+
+  # 3. set one field, others untouched
+  ar_task_set "$WS" status waiting
+  t_eq "$eng: set updates status" "waiting" "$(ar_task_get "$WS" status)"
+  t_eq "$eng: set leaves importance alone" "critical" "$(ar_task_get "$WS" importance)"
+
+  # 4. numeric fields stay numbers
+  ar_task_set "$WS" resume_count 2
+  t_eq "$eng: numeric get" "2" "$(ar_task_get "$WS" resume_count)"
+  t_contains "$eng: numeric stored unquoted" '"resume_count": 2' "$(cat "$CLAUDE_AUTO_RESUME_STATE")"
+
+  # 5. journal append accumulates
+  ar_journal_append "$WS" "limit-hit" "reset at 20:00"
+  ar_journal_append "$WS" "resumed" "attempt 1"
+  local shown
+  shown="$(ar_journal_show "$WS" 10)"
+  t_contains "$eng: journal has first event" "limit-hit" "$shown"
+  t_contains "$eng: journal has second event" "resumed" "$shown"
+
+  # 6. second task doesn't clobber the first
+  ar_task_upsert "$WS2" "status=running" "importance=low"
+  t_eq "$eng: second task readable" "low" "$(ar_task_get "$WS2" importance)"
+  t_eq "$eng: first task intact" "waiting" "$(ar_task_get "$WS" status)"
+  t_eq "$eng: first prompt intact" "$PROMPT" "$(ar_task_get "$WS" original_prompt)"
+
+  # 7. task_exists
+  ar_task_exists "$WS" && ok "$eng: task_exists true" || fail "$eng: task_exists true"
+  ar_task_exists "/nope" && fail "$eng: task_exists false" || ok "$eng: task_exists false"
+
+  # 8. atomic write leaves no temp litter
+  if ls "$tmp"/state.json.tmp.* >/dev/null 2>&1; then
+    fail "$eng: no temp litter"
+  else
+    ok "$eng: no temp litter"
+  fi
+
+  # 9. state file is valid JSON (checked with any real parser available)
+  if command -v python3 >/dev/null 2>&1; then
+    if python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$CLAUDE_AUTO_RESUME_STATE" 2>/dev/null; then
+      ok "$eng: state file is valid JSON"
+    else
+      fail "$eng: state file is valid JSON" "$(cat "$CLAUDE_AUTO_RESUME_STATE")"
+    fi
+  fi
+
+  rm -rf "$tmp"
+}
+
+for eng in jq python3 text; do
+  if engine_available "$eng"; then
+    state_suite "$eng"
+  else
+    printf 'skip - engine %s not available on this machine\n' "$eng"
+  fi
+done
+
+# --------------------------------------- cross-engine interop (jq -> text) --
+
+if command -v jq >/dev/null 2>&1; then
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/ar-test-XXXXXX")"
+  export CLAUDE_AUTO_RESUME_STATE="$tmp/state.json"
+  export CLAUDE_AUTO_RESUME_LOG_DIR="$tmp/logs"
+  export AR_JSON_ENGINE="jq"
+  . "$PLUGIN/scripts/lib.sh"
+  WS="/interop/ws"
+  ar_task_upsert "$WS" "status=limit-hit" "resume_at=2026-07-18T20:00:00+0600"
+  ar_journal_append "$WS" "limit-hit" "interop"
+  export AR_JSON_ENGINE="text"
+  t_eq "interop: text reads jq-written status" "limit-hit" "$(ar_task_get "$WS" status)"
+  t_eq "interop: text reads jq-written resume_at" "2026-07-18T20:00:00+0600" "$(ar_task_get "$WS" resume_at)"
+  ar_task_set "$WS" status waiting
+  export AR_JSON_ENGINE="jq"
+  t_eq "interop: jq reads text-written status" "waiting" "$(ar_task_get "$WS" status)"
+  # text-tier journal append onto a jq-expanded journal array
+  export AR_JSON_ENGINE="text"
+  ar_journal_append "$WS" "resumed" "interop 2"
+  export AR_JSON_ENGINE="jq"
+  t_contains "interop: jq reads text-appended journal" "interop 2" "$(ar_journal_show "$WS" 10)"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$CLAUDE_AUTO_RESUME_STATE" 2>/dev/null \
+      && ok "interop: mixed-engine file still valid JSON" \
+      || fail "interop: mixed-engine file still valid JSON" "$(cat "$CLAUDE_AUTO_RESUME_STATE")"
+  fi
+  rm -rf "$tmp"
+else
+  printf 'skip - interop suite needs jq\n'
+fi
+
+# ------------------------------------------------------------- timestamps --
+
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/ar-test-XXXXXX")"
+export CLAUDE_AUTO_RESUME_STATE="$tmp/state.json"
+export CLAUDE_AUTO_RESUME_LOG_DIR="$tmp/logs"
+unset AR_JSON_ENGINE
+. "$PLUGIN/scripts/lib.sh"
+
+t_eq "time: known ISO to epoch" "1767225600" "$(ar_iso_to_epoch '2026-01-01T00:00:00+0000')"
+t_eq "time: colon offset tolerated" "1767225600" "$(ar_iso_to_epoch '2026-01-01T00:00:00+00:00')"
+NOW_ISO="$(ar_now_iso)"
+NOW_EPOCH="$(ar_iso_to_epoch "$NOW_ISO")"
+case "$NOW_EPOCH" in
+  [0-9]*) ok "time: now round-trips to epoch" ;;
+  *) fail "time: now round-trips to epoch" "got: $NOW_EPOCH" ;;
+esac
+ROUND="$(ar_iso_to_epoch "$(ar_epoch_to_iso "$NOW_EPOCH")")"
+t_eq "time: epoch <-> iso round trip" "$NOW_EPOCH" "$ROUND"
+rm -rf "$tmp"
+
+# ------------------------------------------------------------ fake-claude --
+
+FTMP="$(mktemp -d "${TMPDIR:-/tmp}/ar-test-XXXXXX")"
+export FAKE_CLAUDE_TRANSCRIPT_DIR="$FTMP/transcripts"
+export FAKE_CLAUDE_RUN_SECS=0
+
+# clean run
+OUT="$(FAKE_CLAUDE_MODE=clean bash "$HERE/fake-claude.sh" -p "do the thing")"
+RC=$?
+t_eq "fake: clean exit code" "0" "$RC"
+t_contains "fake: clean stdout" "Task completed cleanly." "$OUT"
+COUNT="$(ls "$FAKE_CLAUDE_TRANSCRIPT_DIR" | wc -l | tr -d ' ')"
+t_eq "fake: clean wrote one transcript" "1" "$COUNT"
+
+# limit run with pinned reset time
+RESET="2026-07-18T20:00:00+0600"
+OUT="$(FAKE_CLAUDE_MODE=limit FAKE_CLAUDE_RESET_AT="$RESET" bash "$HERE/fake-claude.sh" -p "long task")"
+RC=$?
+t_eq "fake: limit exit code" "1" "$RC"
+t_contains "fake: limit stdout has message" "usage limit reached" "$OUT"
+t_contains "fake: limit stdout has reset time" "$RESET" "$OUT"
+LIMIT_TRANSCRIPT="$(ls -t "$FAKE_CLAUDE_TRANSCRIPT_DIR"/*.jsonl | head -1)"
+t_contains "fake: transcript tail has limit text" "usage limit reached" "$(tail -2 "$LIMIT_TRANSCRIPT")"
+t_contains "fake: transcript tail has reset time" "$RESET" "$(tail -2 "$LIMIT_TRANSCRIPT")"
+
+# resume appends to the same transcript
+SID="resume-test-1"
+FAKE_CLAUDE_MODE=clean bash "$HERE/fake-claude.sh" -p "start" --resume "$SID" >/dev/null
+LINES1="$(wc -l < "$FAKE_CLAUDE_TRANSCRIPT_DIR/$SID.jsonl" | tr -d ' ')"
+FAKE_CLAUDE_MODE=clean bash "$HERE/fake-claude.sh" -p "continue" --resume "$SID" >/dev/null
+LINES2="$(wc -l < "$FAKE_CLAUDE_TRANSCRIPT_DIR/$SID.jsonl" | tr -d ' ')"
+if [ "$LINES2" -gt "$LINES1" ]; then
+  ok "fake: --resume appends to same transcript"
+else
+  fail "fake: --resume appends to same transcript" "before: $LINES1 after: $LINES2"
+fi
+
+# stream-json mirrors to stdout
+OUT="$(FAKE_CLAUDE_MODE=clean bash "$HERE/fake-claude.sh" -p "stream" --output-format stream-json)"
+t_contains "fake: stream-json emits typed lines" '"type":"result"' "$OUT"
+
+rm -rf "$FTMP"
+
+# ---------------------------------------------------------- on-stop smoke --
+
+STMP="$(mktemp -d "${TMPDIR:-/tmp}/ar-test-XXXXXX")"
+export CLAUDE_AUTO_RESUME_STATE="$STMP/state.json"
+export CLAUDE_AUTO_RESUME_LOG_DIR="$STMP/logs"
+ERR="$(echo '{"session_id":"abc","transcript_path":"/nonexistent"}' | bash "$PLUGIN/scripts/on-stop.sh" Stop 2>&1 >/dev/null)"
+RC=$?
+t_eq "on-stop: always exits 0" "0" "$RC"
+t_eq "on-stop: no stderr noise" "" "$ERR"
+t_contains "on-stop: logged the event" "event=Stop" "$(cat "$STMP/logs/plugin.log" 2>/dev/null)"
+ERR="$(printf '' | bash "$PLUGIN/scripts/on-stop.sh" SessionEnd 2>&1 >/dev/null)"
+RC=$?
+t_eq "on-stop: empty payload still exits 0" "0" "$RC"
+rm -rf "$STMP"
+
+# ---------------------------------------------------------------- summary --
+
+printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
+[ "$FAIL" -eq 0 ]

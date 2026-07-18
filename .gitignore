@@ -1,0 +1,14 @@
+# OS noise
+.DS_Store
+
+# Logs and local scratch
+*.log
+test/tmp/
+tmp/
+
+# Archives (probe zip etc.)
+*.zip
+
+# Editor
+.vscode/
+.idea/

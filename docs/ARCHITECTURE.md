@@ -1,0 +1,135 @@
+# Architecture
+
+## Problem
+
+Developers running long agentic Claude Code tasks hit usage limits mid-task
+and must babysit the terminal waiting for reset. claude-auto-resume removes
+the babysitting: it detects the limit hit, waits until the reset time, and
+resumes the same session with proper context — with behavior graded by task
+importance.
+
+## Two components, one contract
+
+### Engine — Claude Code plugin (`plugin/`)
+
+Editor-agnostic. Hooks detect session stops; a detached daemon owns the
+wait-and-resume cycle. Works for terminal / SSH / JetBrains / VS Code users
+alike. This is phase 1 and lives in this repo now.
+
+### Cockpit — VS Code extension (`vscode-extension/`)
+
+Phase 4, currently empty. A pure UI shell: watches the state file, renders
+status bar / journal / controls, writes command entries the daemon picks up.
+It never spawns or parses Claude Code itself.
+
+### Contract — `~/.claude/auto-resume/state.json`
+
+Everything the daemon knows lives here; anything a UI needs, it reads here.
+The `commands` array is the UI→daemon channel (e.g.
+`{"cmd": "resume-now", "workspace": "..."}`).
+
+Schema changes require a `version` bump and an entry in `docs/DECISIONS.md`.
+
+## state.json schema (v1)
+
+```json
+{
+  "version": 1,
+  "tasks": {
+    "<workspace-abs-path>": {
+      "session_id": "",
+      "status": "running | limit-hit | waiting | resuming | done | failed | cancelled",
+      "importance": "critical | normal | low",
+      "original_prompt": "",
+      "resume_at": "ISO-8601 with timezone",
+      "resume_count": 0,
+      "max_resumes": 3,
+      "resume_prompt_template": "Limit reset. Continue from where you stopped. Check PROGRESS.md first.",
+      "last_output_tail": "",
+      "progress_file": "PROGRESS.md",
+      "journal": [
+        { "ts": "", "event": "limit-hit | resumed | done | failed | cancelled", "detail": "" }
+      ]
+    }
+  },
+  "commands": []
+}
+```
+
+Field notes:
+
+- **workspace key** — the absolute working directory at `/task-start` time;
+  one tracked task per workspace (see DECISIONS D3).
+- **session_id** — filled from hook payloads once a session stops (hooks
+  receive it; slash commands don't). Empty until then.
+- **resume_at** — parsed from the limit message; ISO-8601 with timezone so
+  the daemon compares wall clock unambiguously across suspend/resume.
+- **resume_count / max_resumes** — safety rail C5; the daemon refuses to
+  resume past the cap.
+- **last_output_tail** — final transcript lines at stop time, used for
+  resume-verification (fallback prompt) and for the UI.
+- **journal** — append-only event history; the UI's timeline source.
+
+## Lifecycle loop
+
+1. User starts a tracked task: `/task-start <importance> <prompt>`.
+2. Session runs. If the limit hits, the session stops → **Stop/SessionEnd
+   hook** fires → `on-stop.sh` inspects the transcript tail.
+3. Not a limit? Mark the task done. Limit? Write resume state (`limit-hit`,
+   `resume_at`), notify the user, spawn a detached daemon
+   (`nohup ... & disown`).
+4. Daemon sleep-loops until `resume_at`: wake every 60 s and compare wall
+   clock — never one long `sleep`, because laptop suspend breaks it.
+5. Daemon resumes: `claude --resume <session_id> -p "<resume prompt>"` in
+   headless mode with pre-approved permissions.
+6. The resumed session ends → hook fires again → the loop closes: task done,
+   or another limit hit → schedule the next resume. Bounded by `max_resumes`
+   and stuck detection (two consecutive resumes with no PROGRESS.md change →
+   stop and notify).
+
+## Importance tiers
+
+| Importance | Behavior at reset |
+|---|---|
+| `critical` | Resume automatically, no confirmation |
+| `normal`   | Notify, then auto-proceed after a 60 s window |
+| `low`      | Notify only; user resumes manually |
+
+## Resume context strategy
+
+Tasks maintain a `PROGRESS.md`. Resume prompts reference it, with a
+two-stage fallback: if the resumed session seems confused, re-send the task
+summary + PROGRESS.md contents.
+
+## Detection: the C1 rule
+
+Which hooks fire on a limit hit — and what their payloads and the transcript
+contain — is **unknown until the probe test completes**
+(`claude-limit-hook-probe/` produces the data; results land in
+`docs/HOOK-FINDINGS.md`). All detection logic must match only against
+documented findings. Until then, `on-stop.sh` is a clearly-marked stub.
+
+**Fallback design:** if findings show hooks don't fire on limit-hit, we
+switch to a supervisor wrapper script that launches and watches the claude
+process. `on-stop.sh` is structured so only its *trigger* changes (hook vs
+supervisor); the daemon and state logic stay identical.
+
+## Window warm-up scheduling (phase 3)
+
+An OS-level scheduled job (cron / launchd / Task Scheduler, managed by
+`/warmup`) fires a minimal prompt (`claude -p "hi" --model haiku`) at a
+user-chosen time so the 5-hour usage window starts earlier. This helps the
+rolling window only, **not** weekly caps — UI and docs must say so honestly.
+
+## Later phases
+
+Usage burn-rate awareness, pre-limit checkpointing (force a PROGRESS.md
+update at ~90% usage), model downshift, task queue.
+
+## Testing strategy (C6)
+
+Real quota is precious. All iterative testing runs against
+`test/fake-claude.sh`, which mimics the claude CLI (`-p`, `--resume`,
+`--output-format stream-json`) and can be told to run N seconds then hit a
+limit, or finish clean, while emitting a realistic transcript. Real limit
+burns are reserved for milestone verification.
