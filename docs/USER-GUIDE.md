@@ -39,10 +39,11 @@ and links the CLI into `~/.local/bin`, no root needed):
 curl -fsSL https://raw.githubusercontent.com/0xsaju/claude-auto-resume/main/install.sh | bash
 ```
 
-After that, the tool manages itself: `claude-auto-resume update` /
-`claude-auto-resume uninstall` / `claude-auto-resume doctor`. (Re-running
-the curl command also updates; `... | bash -s -- --uninstall` also
-uninstalls.)
+That single command sets up everything: the CLI on your PATH **and** the
+Claude Code detection hooks (registered directly in
+`~/.claude/settings.json` — see §2.1). After that the tool manages itself:
+`claude-auto-resume update` / `uninstall` / `doctor`. (Re-running the curl
+command also updates; `... | bash -s -- --uninstall` also uninstalls.)
 
 Verify:
 
@@ -62,23 +63,30 @@ CLI manually:
 ln -s /path/to/claude-auto-resume/bin/claude-auto-resume ~/.local/bin/
 ```
 
-### 2.1 The optional plugin (detection hooks)
+### 2.1 The detection hooks
 
-The CLI is the whole control surface. The Claude Code plugin in this repo
-contributes one thing: **hooks** that will detect a limit hit the moment it
-happens — unattended, with the session id — and schedule the resume with no
-human action. That detection is still in development (it's built only
-against measured hook data), but you can install the plugin now so it's in
-place when it lights up:
+The CLI is the whole control surface. The **hooks** are the sensor: they
+fire when a Claude Code session stops, which is what will detect a limit
+hit the moment it happens — unattended, with the session id. (That
+detection logic is still in development; today the hooks capture the data
+that development needs.)
 
-```text
-/plugin marketplace add ~/.claude-auto-resume
-/plugin install claude-auto-resume@auto-resume
+The installer registers them automatically by writing two entries into
+`~/.claude/settings.json` — merged carefully (your existing settings and
+hooks are untouched), backed up first
+(`settings.json.car-backup-<timestamp>`), idempotent, and fully reversible:
+
+```sh
+claude-auto-resume setup-hooks    # register (the installer already did this)
+claude-auto-resume remove-hooks   # undo it surgically
+claude-auto-resume doctor         # shows whether hooks are registered
 ```
 
-(From a clone, use its path instead of `~/.claude-auto-resume`.) The
-plugin adds no commands and costs no tokens; its hooks log to
-`~/.claude/auto-resume/logs/plugin.log` and always exit cleanly.
+**Alternative packaging:** the same hooks also exist as a Claude Code
+plugin (`/plugin marketplace add ~/.claude-auto-resume`, then
+`/plugin install claude-auto-resume@auto-resume`). Use **one or the
+other** — both at once would run every hook twice, and `setup-hooks`
+detects an installed plugin and refuses for exactly that reason.
 
 ## 3. Core concepts
 
@@ -249,6 +257,15 @@ Removes the install directory and the CLI link after confirmation
 `~/.claude/auto-resume` are kept; the command prints how to remove them.
 Refuses to run on a checkout with uncommitted changes so it can't eat a
 development copy.
+
+### `claude-auto-resume setup-hooks [--force]` / `claude-auto-resume remove-hooks`
+
+Register or remove the detection hooks in `~/.claude/settings.json`.
+Merging is surgical (only entries referencing `on-stop.sh` are ever added
+or removed), a timestamped backup is written before any change, and
+running setup twice adds nothing. `--force` overrides the
+plugin-conflict check. Requires `python3` (prints the manual snippet
+otherwise).
 
 ### `claude-auto-resume version`
 

@@ -203,3 +203,33 @@ helper `ar_daemon_pidfile` in lib.sh), kills the daemon and its
 descendants (best-effort via pgrep; skipped where pgrep is absent), and
 removes the pidfile. Cancel means stop — not "stop after the current
 attempt finishes".
+
+## D20 — 2026-07-18 — Hooks register via settings.json (`setup-hooks`); installer delivers the whole environment
+
+Deep-dive outcome: settings-file hooks and plugin hooks are functionally
+identical, so the plugin is not required for detection — `setup-hooks`
+writes our two Stop/SessionEnd entries directly into
+`~/.claude/settings.json`. Safety contract: merge-never-overwrite (only
+entries whose command references on-stop.sh are touched), timestamped
+backup before every edit, idempotent, python3 required (manual snippet
+printed otherwise — sed is not safe against arbitrary user JSON), and it
+refuses to register when the Claude Code plugin is detected (hooks would
+fire twice; --force overrides). install.sh now runs setup-hooks
+(CAR_NO_HOOKS skips), and both uninstall paths run remove-hooks — the
+curl one-liner is now the complete environment. The plugin remains as
+alternative packaging only. brew/apt explicitly declined for now.
+
+## D21 — 2026-07-18 — VS Code cockpit MVP: plain JS, reads state.json, writes through the CLI
+
+Built as a dependency-free plain-JavaScript extension (no bundler, no
+node_modules): status bar item per workspace (watch on the state dir +
+5 s fallback poll, since atomic mv breaks file-level fs.watch),
+quick-pick menu (schedule / status / cancel / open log), and onboarding
+that offers to run the curl installer in an integrated terminal when the
+CLI is missing. All writes go through the CLI rather than the state
+file's `commands` array — one logic path; the commands array stays in
+the schema, unused, for a future where a UI can't shell out. Runs from
+source (F5) or a locally packaged .vsix; not published to the
+marketplace yet. Extension has no automated tests (would need the VS
+Code test harness) — verified by `node --check` + manual run;
+acceptable for a thin shell that must stay thin.

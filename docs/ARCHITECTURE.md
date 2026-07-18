@@ -21,18 +21,22 @@ The primary interface (D15/D17): a thin dispatcher over the engine
 scripts. Zero token cost, and works while rate-limited — when nothing
 needing a model turn can run.
 
-### Sensor — Claude Code plugin hooks (`plugin/hooks/`, `on-stop.sh`)
+### Sensor — Claude Code hooks (`on-stop.sh`)
 
-The plugin's only job: hooks fire when a session stops, which is the one
-mechanism that can detect a limit hit unattended and capture the
-session_id for a true `--resume`. Detection logic is stubbed until
-HOOK-FINDINGS has the payload data (C1).
+Hooks fire when a session stops — the one mechanism that can detect a
+limit hit unattended and capture the session_id for a true `--resume`.
+Detection logic is stubbed until HOOK-FINDINGS has the payload data (C1).
+Canonical registration is **directly in `~/.claude/settings.json`** via
+`setup-hooks` (D20), done automatically by the installer; the Claude Code
+plugin (`plugin/hooks/`) packages the same hooks as an alternative — use
+one or the other, never both.
 
 ### Cockpit — VS Code extension (`vscode-extension/`)
 
-Phase 4, currently empty. A pure UI shell: watches the state file, renders
-status bar / journal / controls, writes command entries the daemon picks up.
-It never spawns or parses Claude Code itself.
+A pure UI shell (MVP, run from source): status bar over the state file,
+quick-pick actions, and install onboarding. Reads come from state.json;
+writes go through the CLI (D21). It never spawns or parses Claude Code
+itself.
 
 ### Contract — `~/.claude/auto-resume/state.json`
 

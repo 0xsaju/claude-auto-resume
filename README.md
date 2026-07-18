@@ -87,14 +87,11 @@ Windows via WSL/Git Bash is best-effort for now).
 curl -fsSL https://raw.githubusercontent.com/0xsaju/claude-auto-resume/main/install.sh | bash
 ```
 
-Optionally install the plugin part — its only job is the hooks that will
-provide fully automatic limit detection (in development) — inside Claude
-Code:
-
-```text
-/plugin marketplace add ~/.claude-auto-resume
-/plugin install claude-auto-resume@auto-resume
-```
+That one command is the whole setup: the CLI on your PATH **and** the
+Claude Code detection hooks, registered directly (and reversibly) in
+`~/.claude/settings.json` — no plugin install, nothing to do inside
+Claude Code. (`claude-auto-resume setup-hooks` / `remove-hooks` manage
+the hooks on their own if you ever need to.)
 
 The CLI is deliberately the primary interface: it costs zero tokens and
 works **while you're rate-limited** — the one moment when nothing that
@@ -131,7 +128,8 @@ All commands operate on the current directory's task (alias suggestion:
 | `list` | All tracked workspaces with status and tier. |
 | `cancel` | Cancel immediately: stops the daemon and kills any in-flight resume. |
 | `log [n]` / `watch` | Show / follow the daemon log. |
-| `doctor` | Environment self-check: claude binary, JSON engine, state file, daemons, notifier. |
+| `doctor` | Environment self-check: claude binary, JSON engine, state file, daemons, hooks, notifier. |
+| `setup-hooks` / `remove-hooks` | Register / remove the detection hooks in `~/.claude/settings.json` (installer does this for you). |
 | `update` | Update to the latest version (`git pull` under the hood). |
 | `uninstall [--yes]` | Remove the tool (keeps your task state and logs). |
 | `version` | Print the version. |
@@ -159,9 +157,10 @@ deliberately unimplemented until measured.
 | Task tracking + journal (`claude-auto-resume start`, `claude-auto-resume status`, `claude-auto-resume cancel`) | ✅ Implemented, tested |
 | Instant limit detection via hooks (exact reset time, zero probe cost) | 🔬 Blocked on probe data — see below |
 | One-command installer + zero-token terminal CLI | ✅ Implemented, tested |
+| Hook registration via installer (`setup-hooks`, no plugin needed) | ✅ Implemented, tested |
+| VS Code cockpit (status bar + controls + install onboarding) | 🧪 MVP — run from source, unpublished |
 | Resume-verification fallback prompt | 🕐 Planned |
 | `/warmup` window scheduler | 🕐 Planned |
-| VS Code cockpit (UI over state.json) | 🕐 Planned |
 | Native Windows (Task Scheduler instead of the daemon; also enables reboot-surviving schedules everywhere) | 🕐 Planned |
 
 Auto-detection works by *probing*: a minimal `claude -p "ok" --model
@@ -200,7 +199,7 @@ plugin/                  Claude Code plugin — the detection sensor
 test/                    fake-claude stub + test suite
 docs/                    user guide, architecture, decisions, findings
 claude-limit-hook-probe/ throwaway hook-instrumentation plugin
-vscode-extension/        future UI (empty)
+vscode-extension/        VS Code cockpit (status bar UI, run from source)
 ```
 
 Engineering ground rules live in [CLAUDE.md](CLAUDE.md): portable bash

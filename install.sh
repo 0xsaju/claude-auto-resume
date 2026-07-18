@@ -25,6 +25,9 @@ say() { printf '%s\n' "$*"; }
 die() { printf 'install: %s\n' "$*" >&2; exit 1; }
 
 if [ "${1:-}" = "--uninstall" ]; then
+  if [ -f "$INSTALL_DIR/plugin/scripts/setup-hooks.sh" ]; then
+    bash "$INSTALL_DIR/plugin/scripts/setup-hooks.sh" remove 2>/dev/null | grep -v "nothing to remove" || true
+  fi
   rm -f "$LINK"
   rm -rf "$INSTALL_DIR"
   say "Removed $INSTALL_DIR and $LINK."
@@ -70,6 +73,15 @@ mkdir -p "$BIN_DIR"
 ln -sf "$INSTALL_DIR/bin/claude-auto-resume" "$LINK"
 say "Linked $LINK -> $INSTALL_DIR/bin/claude-auto-resume"
 
+say ""
+say "Registering Claude Code hooks (groundwork for automatic limit detection) ..."
+if [ -z "${CAR_NO_HOOKS:-}" ]; then
+  "$INSTALL_DIR/bin/claude-auto-resume" setup-hooks ||
+    say "  hook setup didn't complete — run 'claude-auto-resume setup-hooks' later"
+else
+  say "  skipped (CAR_NO_HOOKS set)"
+fi
+
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
   *)
@@ -86,9 +98,5 @@ say "Terminal usage (zero tokens — works even while rate-limited):"
 say "  claude-auto-resume resume-at    # after a limit hit: auto-detect reset + resume"
 say "  claude-auto-resume status       # this workspace's task"
 say "  claude-auto-resume watch        # follow the daemon log"
-say ""
-say "Optional — automatic limit-detection hooks (in development), inside Claude Code:"
-say "  /plugin marketplace add $INSTALL_DIR"
-say "  /plugin install claude-auto-resume@auto-resume"
 say ""
 say "Manual: $INSTALL_DIR/docs/USER-GUIDE.md"

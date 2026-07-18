@@ -14,6 +14,8 @@
 #   claude-auto-resume log [n]                      last n log lines (default 40)
 #   claude-auto-resume watch                        follow the log live
 #   claude-auto-resume doctor                       check the environment
+#   claude-auto-resume setup-hooks [--force]        register detection hooks in settings.json
+#   claude-auto-resume remove-hooks                 remove those hooks
 #   claude-auto-resume update                       update to the latest version
 #   claude-auto-resume uninstall [--yes]            remove the tool
 #   claude-auto-resume version                      print the version
@@ -133,6 +135,12 @@ EOF
       fi
     done
     printf '  %-8s %-5s %s\n' "daemons" "ok" "$RUNNING running, $STALE stale"
+    SETTINGS="${CLAUDE_SETTINGS_FILE:-$HOME/.claude/settings.json}"
+    if [ -f "$SETTINGS" ] && grep -q "on-stop.sh" "$SETTINGS" 2>/dev/null; then
+      printf '  %-8s %-5s %s\n' "hooks" "ok" "registered in settings.json"
+    else
+      printf '  %-8s %-5s %s\n' "hooks" "--" "not registered (claude-auto-resume setup-hooks); manual mode still works"
+    fi
     if command -v osascript >/dev/null 2>&1; then
       printf '  %-8s %-5s %s\n' "notify" "ok" "osascript"
     elif command -v notify-send >/dev/null 2>&1; then
@@ -141,6 +149,12 @@ EOF
       printf '  %-8s %-5s %s\n' "notify" "ok" "log-only (no desktop notifier found)"
     fi
     exit "$RC" ;;
+
+  setup-hooks)
+    exec bash "$SCRIPTS_DIR/setup-hooks.sh" install "$@" ;;
+
+  remove-hooks)
+    exec bash "$SCRIPTS_DIR/setup-hooks.sh" remove ;;
 
   update)
     if [ -d "$ROOT/.git" ] && command -v git >/dev/null 2>&1; then
@@ -174,6 +188,7 @@ EOF
       fi
       case "$ANS" in y|Y|yes|YES) ;; *) echo "Aborted."; exit 0 ;; esac
     fi
+    bash "$SCRIPTS_DIR/setup-hooks.sh" remove 2>/dev/null | grep -v "nothing to remove" || true
     [ -L "$ORIG0" ] && rm -f "$ORIG0"
     FOUND_LINK="$(command -v claude-auto-resume 2>/dev/null || true)"
     if [ -n "$FOUND_LINK" ] && [ -L "$FOUND_LINK" ]; then

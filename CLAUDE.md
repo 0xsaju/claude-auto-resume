@@ -36,8 +36,13 @@ contract = `~/.claude/auto-resume/state.json`.
 - `plugin/scripts/task-*.sh` — command backends
   (task-resume-at.sh = manual post-limit scheduling, D10)
 - `bin/claude-auto-resume` — the CLI, primary interface (D15/D17)
-- `install.sh` — curl-pipe-bash installer (D16)
-- `plugin/hooks/hooks.json` — hook wiring (the plugin's only job)
+- `install.sh` — curl-pipe-bash installer; also registers hooks (D16/D20)
+- `plugin/scripts/setup-hooks.sh` — hook (de)registration in
+  ~/.claude/settings.json; canonical sensor wiring (D20)
+- `plugin/hooks/hooks.json` — same hooks as plugin packaging (alternative
+  only — never both, they'd fire twice)
+- `vscode-extension/` — cockpit MVP: plain JS, reads state.json, writes
+  via CLI (D21); keep it thin, no build tooling
 - `.claude-plugin/marketplace.json` — local/GitHub install manifest
 - `test/fake-claude.sh` — claude CLI stub; `test/run-tests.sh` — test suite
 - `docs/USER-GUIDE.md` — user manual (keep in sync with behavior changes)

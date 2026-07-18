@@ -489,6 +489,59 @@ case "$HOUT" in
   *"set -u"*) fail "cli: help leaks no code" "$HOUT" ;;
   *) ok "cli: help leaks no code" ;;
 esac
+# hook setup/removal against an isolated settings file
+export CLAUDE_SETTINGS_FILE="$CTMP/settings.json"
+export CLAUDE_AUTO_RESUME_PLUGIN_SCAN="$CTMP/no-plugins"
+if command -v python3 >/dev/null 2>&1; then
+  OUT="$(bash "$CLI" setup-hooks)"
+  t_contains "hooks: fresh setup registers" "Hooks registered" "$OUT"
+  t_eq "hooks: one entry per event" "2" "$(grep -c "on-stop.sh" "$CLAUDE_SETTINGS_FILE")"
+  python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$CLAUDE_SETTINGS_FILE" \
+    && ok "hooks: settings file valid JSON" || fail "hooks: settings file valid JSON"
+  OUT="$(bash "$CLI" setup-hooks)"
+  t_contains "hooks: idempotent" "already registered" "$OUT"
+  t_eq "hooks: no duplicates after re-run" "2" "$(grep -c "on-stop.sh" "$CLAUDE_SETTINGS_FILE")"
+
+  # merging preserves unrelated settings and other people's hooks
+  cat > "$CTMP/settings2.json" <<'JSON'
+{
+  "model": "opus",
+  "hooks": {
+    "Stop": [ { "hooks": [ { "type": "command", "command": "echo mine" } ] } ],
+    "PostToolUse": [ { "hooks": [ { "type": "command", "command": "echo other" } ] } ]
+  }
+}
+JSON
+  CLAUDE_SETTINGS_FILE="$CTMP/settings2.json" bash "$CLI" setup-hooks >/dev/null
+  S2="$(cat "$CTMP/settings2.json")"
+  t_contains "hooks: preserves unrelated keys" '"model": "opus"' "$S2"
+  t_contains "hooks: preserves foreign Stop hook" "echo mine" "$S2"
+  t_contains "hooks: preserves foreign event" "echo other" "$S2"
+  t_eq "hooks: ours added alongside" "2" "$(grep -c "on-stop.sh" "$CTMP/settings2.json")"
+  ls "$CTMP"/settings2.json.car-backup-* >/dev/null 2>&1 \
+    && ok "hooks: backup created before edit" || fail "hooks: backup created before edit"
+  CLAUDE_SETTINGS_FILE="$CTMP/settings2.json" bash "$CLI" remove-hooks >/dev/null
+  S2="$(cat "$CTMP/settings2.json")"
+  t_eq "hooks: removal strips only ours" "0" "$(grep -c "on-stop.sh" "$CTMP/settings2.json" || true)"
+  t_contains "hooks: removal keeps foreign Stop hook" "echo mine" "$S2"
+  t_contains "hooks: removal keeps unrelated keys" '"model": "opus"' "$S2"
+  python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$CTMP/settings2.json" \
+    && ok "hooks: file valid after removal" || fail "hooks: file valid after removal"
+
+  # plugin conflict: refuses to double-register
+  mkdir -p "$CTMP/fake-plugins/cache/claude-auto-resume"
+  OUT="$(CLAUDE_SETTINGS_FILE="$CTMP/settings3.json" CLAUDE_AUTO_RESUME_PLUGIN_SCAN="$CTMP/fake-plugins" bash "$CLI" setup-hooks)"
+  t_contains "hooks: plugin conflict detected" "plugin" "$OUT"
+  [ ! -f "$CTMP/settings3.json" ] && ok "hooks: conflict skips registration" \
+    || fail "hooks: conflict skips registration" "$(cat "$CTMP/settings3.json")"
+
+  # doctor reports hook status
+  t_contains "hooks: doctor shows registered" "registered in settings.json" \
+    "$(CLAUDE_AUTO_RESUME_CLAUDE_BIN="$HERE/fake-claude.sh" bash "$CLI" doctor)"
+else
+  printf 'skip - hook setup tests need python3\n'
+fi
+
 t_contains "cli: version" "claude-auto-resume 0.2.0" "$(bash "$CLI" version)"
 t_contains "cli: --version flag" "claude-auto-resume 0.2.0" "$(bash "$CLI" --version)"
 DOUT="$(CLAUDE_AUTO_RESUME_CLAUDE_BIN="$HERE/fake-claude.sh" bash "$CLI" doctor)"
@@ -510,6 +563,9 @@ ROOT="$(cd "$HERE/.." && pwd)"
 if command -v git >/dev/null 2>&1 && [ -d "$ROOT/.git" ]; then
   ITMP="$(mktemp -d "${TMPDIR:-/tmp}/ar-test-XXXXXX")"
   ITMP="$(cd "$ITMP" && pwd)"
+  # isolate hook registration away from the real ~/.claude/settings.json
+  export CLAUDE_SETTINGS_FILE="$ITMP/settings.json"
+  export CLAUDE_AUTO_RESUME_PLUGIN_SCAN="$ITMP/no-plugins"
   OUT="$(CAR_REPO_URL="$ROOT" CAR_INSTALL_DIR="$ITMP/app" CAR_BIN_DIR="$ITMP/bin" bash "$ROOT/install.sh" 2>&1)"
   t_contains "installer: links the CLI" "Linked" "$OUT"
   [ -x "$ITMP/bin/claude-auto-resume" ] && ok "installer: CLI link executable" || fail "installer: CLI link executable"
@@ -518,12 +574,22 @@ if command -v git >/dev/null 2>&1 && [ -d "$ROOT/.git" ]; then
   t_contains "installer: installed CLI runs through symlink" "No tracked task" "$OUT"
   OUT="$(CAR_REPO_URL="$ROOT" CAR_INSTALL_DIR="$ITMP/app" CAR_BIN_DIR="$ITMP/bin" bash "$ROOT/install.sh" 2>&1)"
   t_contains "installer: re-run updates in place" "Updating existing install" "$OUT"
-  # the clone has the last committed CLI; test the working-tree CLI
-  # against the installed layout (committed in the clone so uninstall's
-  # dirty-checkout guard doesn't trip)
+  # the clone has the last committed CLI; test the working-tree CLI +
+  # scripts against the installed layout (committed in the clone so
+  # uninstall's dirty-checkout guard doesn't trip)
   cp "$ROOT/bin/claude-auto-resume" "$ITMP/app/bin/claude-auto-resume"
+  cp "$ROOT"/plugin/scripts/*.sh "$ITMP/app/plugin/scripts/"
+  git -C "$ITMP/app" add -A 2>/dev/null
   git -C "$ITMP/app" -c user.email=test@test -c user.name=test commit -qam "test cli" 2>/dev/null
+  if command -v python3 >/dev/null 2>&1; then
+    "$ITMP/bin/claude-auto-resume" setup-hooks >/dev/null 2>&1
+    t_contains "installer: hooks registered post-install" "on-stop.sh" "$(cat "$ITMP/settings.json" 2>/dev/null)"
+  fi
   OUT="$("$ITMP/bin/claude-auto-resume" uninstall --yes 2>&1)"
+  if command -v python3 >/dev/null 2>&1; then
+    HOOKS_LEFT="$(grep -c "on-stop.sh" "$ITMP/settings.json" 2>/dev/null || true)"
+    t_eq "installer: uninstall removes hooks too" "0" "${HOOKS_LEFT:-0}"
+  fi
   t_contains "cli: uninstall reports" "Removed" "$OUT"
   [ ! -e "$ITMP/app" ] && [ ! -e "$ITMP/bin/claude-auto-resume" ] && ok "cli: uninstall removes app and link" \
     || fail "cli: uninstall removes app and link" "$(ls "$ITMP" "$ITMP/bin" 2>/dev/null)"

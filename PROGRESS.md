@@ -94,6 +94,18 @@ Living checklist for claude-auto-resume. Update before ending any session.
 - [x] **cancel = stop now** (2026-07-18, D19) — real-world find: an
       in-flight resume kept burning quota ~15 min after cancel; cancel
       now kills the daemon + descendants via pidfile; tests → 179
+- [x] **One installer = whole environment** (2026-07-18, D20)
+  - [x] `setup-hooks`/`remove-hooks`: surgical settings.json merge with
+        backups, idempotency, plugin-conflict refusal, python3-required
+        with manual fallback; doctor shows hook status
+  - [x] install.sh registers hooks; both uninstall paths remove them;
+        plugin demoted to alternative packaging; tests 179 → 199
+- [x] **VS Code cockpit MVP** (2026-07-18, D21)
+  - [x] `vscode-extension/`: plain-JS extension — status bar (state.json
+        watch + poll), quick-pick menu (schedule/status/cancel/log),
+        CLI-missing onboarding with install-in-terminal button
+  - [x] Verified via node --check + manifest validation; run from source
+        (F5); marketplace publishing deferred
 
 ## In progress
 
