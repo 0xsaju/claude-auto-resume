@@ -27,7 +27,7 @@ t_contains() { # name needle haystack
 
 # ---------------------------------------------------------- syntax checks --
 
-for f in "$PLUGIN"/scripts/*.sh "$HERE"/fake-claude.sh "$HERE"/run-tests.sh; do
+for f in "$PLUGIN"/scripts/*.sh "$HERE"/fake-claude.sh "$HERE"/run-tests.sh "$HERE"/../bin/claude-auto-resume "$HERE"/../install.sh; do
   if bash -n "$f" 2>/dev/null; then
     ok "syntax: $(basename "$f")"
   else
@@ -449,6 +449,30 @@ t_eq "cli: cancel works" "cancelled" "$(ar_task_get "$CWS" status)"
 t_contains "cli: log shows entries" "task-start:" "$(bash "$CLI" log)"
 t_contains "cli: unknown command shows usage" "Usage" "$(bash "$CLI" bogus 2>&1)"
 rm -rf "$CTMP"
+
+# --------------------------------------------------------------- installer --
+# Offline: installs by cloning the local repo itself.
+
+ROOT="$(cd "$HERE/.." && pwd)"
+if command -v git >/dev/null 2>&1 && [ -d "$ROOT/.git" ]; then
+  ITMP="$(mktemp -d "${TMPDIR:-/tmp}/ar-test-XXXXXX")"
+  ITMP="$(cd "$ITMP" && pwd)"
+  OUT="$(CAR_REPO_URL="$ROOT" CAR_INSTALL_DIR="$ITMP/app" CAR_BIN_DIR="$ITMP/bin" bash "$ROOT/install.sh" 2>&1)"
+  t_contains "installer: links the CLI" "Linked" "$OUT"
+  [ -x "$ITMP/bin/claude-auto-resume" ] && ok "installer: CLI link executable" || fail "installer: CLI link executable"
+  IWS="$ITMP/ws"; mkdir -p "$IWS"
+  OUT="$(cd "$IWS" && CLAUDE_AUTO_RESUME_STATE="$ITMP/state.json" CLAUDE_AUTO_RESUME_LOG_DIR="$ITMP/logs" "$ITMP/bin/claude-auto-resume" status)"
+  t_contains "installer: installed CLI runs through symlink" "No tracked task" "$OUT"
+  OUT="$(CAR_REPO_URL="$ROOT" CAR_INSTALL_DIR="$ITMP/app" CAR_BIN_DIR="$ITMP/bin" bash "$ROOT/install.sh" 2>&1)"
+  t_contains "installer: re-run updates in place" "Updating existing install" "$OUT"
+  OUT="$(CAR_INSTALL_DIR="$ITMP/app" CAR_BIN_DIR="$ITMP/bin" bash "$ROOT/install.sh" --uninstall 2>&1)"
+  t_contains "installer: uninstall reports" "Removed" "$OUT"
+  [ ! -e "$ITMP/app" ] && [ ! -e "$ITMP/bin/claude-auto-resume" ] && ok "installer: uninstall removes app and link" \
+    || fail "installer: uninstall removes app and link" "$(ls "$ITMP" "$ITMP/bin" 2>/dev/null)"
+  rm -rf "$ITMP"
+else
+  printf 'skip - installer suite needs git and a git checkout\n'
+fi
 
 # ---------------------------------------------------------- on-stop smoke --
 

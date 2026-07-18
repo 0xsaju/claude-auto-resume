@@ -148,3 +148,19 @@ and no Claude Code session — status | start | resume-at | cancel | log |
 watch. Slash commands stay for convenience when unlimited; the CLI is the
 documented path while limited. Command scripts now also ar_log their
 actions for a terminal-visible audit trail.
+
+## D16 — 2026-07-18 — One-command installer; repo goes open source
+
+`curl -fsSL .../install.sh | bash` installs without root: repo cloned (or
+tarball-extracted when git is absent) to `~/.claude-auto-resume`, CLI
+symlinked into `~/.local/bin`, PATH hint printed if needed. Re-running
+updates in place (`git pull --ff-only`); `--uninstall` removes app + link
+but keeps runtime state at `~/.claude/auto-resume` (user data outlives the
+tool). Plugin registration stays a manual in-session `/plugin` step —
+driving Claude Code's plugin manager from an installer script would depend
+on unversioned CLI surface. Roles clarified after review: CLI-first
+product, plugin's long-term value is the hook sensor (unattended detection
++ session_id capture); slash commands are optional sugar. Native Windows
+support deferred: the plan is a Task Scheduler one-shot at resume time
+instead of a ported sleep-loop daemon, which also opens the door to
+launchd/cron reboot-surviving schedules on macOS/Linux.

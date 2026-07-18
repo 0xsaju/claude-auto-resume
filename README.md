@@ -77,22 +77,27 @@ journaled per task; `/task-status` shows the timeline.
 
 ## Quick start
 
-Requires Claude Code with plugin support, bash, and macOS or Linux
-(`jq` recommended but not required).
+Requires bash and macOS or Linux (`jq` recommended but not required;
+Windows via WSL/Git Bash is best-effort for now).
+
+**Install with one command** (no root; puts the repo in
+`~/.claude-auto-resume` and the CLI on `~/.local/bin`):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/0xsaju/claude-auto-resume/main/install.sh | bash
+```
+
+Optionally add the in-session slash commands and (future) automatic
+detection hooks — inside Claude Code:
 
 ```text
-# inside Claude Code, from this repository's clone or GitHub:
-/plugin marketplace add 0xsaju/claude-auto-resume
+/plugin marketplace add ~/.claude-auto-resume
 /plugin install claude-auto-resume@auto-resume
 ```
 
-And link the terminal CLI somewhere on your PATH — **while you're
-rate-limited, Claude can't answer, so slash commands don't work; the CLI
-always does, at zero token cost**:
-
-```sh
-ln -s /path/to/claude-auto-resume/bin/claude-auto-resume ~/bin/
-```
+The CLI matters more than it looks: **while you're rate-limited, Claude
+can't answer, so slash commands don't work — the CLI always does, at zero
+token cost.**
 
 Then, the day a limit hits you mid-task:
 
@@ -152,9 +157,11 @@ deliberately unimplemented until measured.
 | Resume daemon (tiers, backoff, safety rails) | ✅ Implemented, tested |
 | Task tracking + journal (`/task-start`, `/task-status`, `/task-cancel`) | ✅ Implemented, tested |
 | Instant limit detection via hooks (exact reset time, zero probe cost) | 🔬 Blocked on probe data — see below |
+| One-command installer + zero-token terminal CLI | ✅ Implemented, tested |
 | Resume-verification fallback prompt | 🕐 Planned |
 | `/warmup` window scheduler | 🕐 Planned |
-| VS Code cockpit | 🕐 Planned |
+| VS Code cockpit (UI over state.json) | 🕐 Planned |
+| Native Windows (Task Scheduler instead of the daemon; also enables reboot-surviving schedules everywhere) | 🕐 Planned |
 
 Auto-detection works by *probing*: a minimal `claude -p "ok" --model
 haiku` call fails while the limit is active. The limit message's format has

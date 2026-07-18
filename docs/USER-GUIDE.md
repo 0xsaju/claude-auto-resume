@@ -31,7 +31,18 @@ claude-auto-resume. For design internals, see
 
 ## 2. Installation
 
-From inside Claude Code:
+**One command** (recommended — installs the repo to `~/.claude-auto-resume`
+and links the CLI into `~/.local/bin`, no root needed):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/0xsaju/claude-auto-resume/main/install.sh | bash
+```
+
+Re-running the same command updates the install. Uninstall with
+`... | bash -s -- --uninstall` (your task state and logs are kept unless
+you delete `~/.claude/auto-resume` yourself).
+
+Then, optionally, add the in-session pieces from inside Claude Code:
 
 ```text
 /plugin marketplace add 0xsaju/claude-auto-resume
@@ -56,11 +67,11 @@ is installed and reachable. If the plugin flow differs in your Claude Code
 version, consult `/plugin` help; the marketplace manifest lives at
 `.claude-plugin/marketplace.json` in this repo.
 
-**Also set up the terminal CLI** (strongly recommended — see
-[§2.1](#21-slash-commands-vs-the-terminal-cli)):
+If you skipped the one-command installer (e.g. working from your own
+clone), link the CLI manually:
 
 ```sh
-ln -s /path/to/claude-auto-resume/bin/claude-auto-resume ~/bin/  # or anywhere on PATH
+ln -s /path/to/claude-auto-resume/bin/claude-auto-resume ~/.local/bin/
 alias car='claude-auto-resume'   # optional, in your shell rc
 ```
 

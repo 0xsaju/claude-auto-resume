@@ -68,6 +68,12 @@ Living checklist for claude-auto-resume. Update before ending any session.
   - [x] README/USER-GUIDE: CLI-first guidance for the limited state
   - [x] Plugin verified installed via local marketplace by user
         (/plugin marketplace add + install + /reload-plugins)
+- [x] **One-command installer** (2026-07-18, D16)
+  - [x] `install.sh`: curl-pipe-bash, no root; clone/update to
+        ~/.claude-auto-resume, CLI symlink to ~/.local/bin, PATH hint,
+        tarball fallback without git, --uninstall (keeps runtime state)
+  - [x] Installer test cycle (install → run via symlink → update →
+        uninstall) offline against the local clone; tests 145 → 153
 
 ## In progress
 
@@ -88,6 +94,14 @@ Living checklist for claude-auto-resume. Update before ending any session.
       unchanged across two resumes), resume-verification fallback prompt,
       `/warmup` scheduler installer, reboot-surviving schedules
 - [ ] **Phase 4:** VS Code cockpit reading state.json
+- [ ] **Native Windows:** Task Scheduler one-shot at resume time instead
+      of the sleep-loop daemon (same approach later → launchd/cron
+      reboot-surviving schedules on macOS/Linux)
+- [ ] **Open-sourcing:** user to flip the GitHub repo public — the
+      install.sh one-liner in README works from that moment
+- [ ] Consider dropping the /task-* slash commands (CLI covers them;
+      plugin's real value is the hook sensor — user leaning yes, awaiting
+      final call)
 
 ## Handoff note (Phase 0+2 → real-world test / Phase 1)
 
