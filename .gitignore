@@ -12,3 +12,6 @@ tmp/
 # Editor
 .vscode/
 .idea/
+
+# Packaged extensions
+*.vsix
