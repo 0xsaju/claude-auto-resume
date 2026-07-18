@@ -103,7 +103,11 @@ function createOrShow(context, host) {
   return panel;
 }
 
-// Sidebar webview view: clicking the activity-bar logo shows the dashboard.
+// The activity-bar icon opens the FULL dashboard tab, not a sidebar UI.
+// VS Code activity-bar icons can only reveal views, so the view is a
+// launcher: on every reveal it opens the editor-tab dashboard and closes
+// the sidebar again. The tiny fallback button covers the rare case where
+// the auto-open is blocked (e.g. during workbench startup).
 function resolveSidebar(webviewView, host) {
   sidebarView = webviewView;
   webviewView.webview.options = { enableScripts: true };
@@ -111,13 +115,39 @@ function resolveSidebar(webviewView, host) {
   webviewView.onDidDispose(() => {
     sidebarView = undefined;
   });
-  webviewView.webview.html = render(host.collectState(), { compact: true });
+  webviewView.webview.html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy"
+  content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+<style>
+  body { font-family: var(--vscode-font-family); color: var(--vscode-descriptionForeground);
+         background: transparent; padding: 16px; font-size: 12px; }
+  button { font-family: inherit; font-size: 12.5px; cursor: pointer; border-radius: 6px;
+           border: none; padding: 7px 14px; width: 100%;
+           background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+</style></head>
+<body>
+  <p>Opening the dashboard…</p>
+  <button id="open">Open Dashboard</button>
+  <script>
+    const vscode = acquireVsCodeApi();
+    document.getElementById('open').addEventListener('click',
+      () => vscode.postMessage({ type: 'openFull' }));
+  </script>
+</body></html>`;
+
+  const openFull = () => {
+    vscode.commands.executeCommand('claudeAutoResume.openDashboard');
+    vscode.commands.executeCommand('workbench.action.closeSidebar');
+  };
+  webviewView.onDidChangeVisibility(() => {
+    if (webviewView.visible) openFull();
+  });
+  openFull();
 }
 
 function update(host) {
   if (panel) panel.webview.html = render(host.collectState(), { compact: false });
-  if (sidebarView)
-    sidebarView.webview.html = render(host.collectState(), { compact: true });
 }
 
 function chip(ok, okText, badText) {

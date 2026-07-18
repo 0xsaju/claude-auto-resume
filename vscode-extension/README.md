@@ -8,10 +8,13 @@ or parses Claude Code itself.
 
 ## Features
 
-- **Sidebar cockpit** — an activity-bar panel listing every tracked
-  workspace with status, tier, schedule, and journal timeline; inline
-  Schedule/Cancel buttons per task; toolbar actions for log, config, and
-  installer; welcome view with onboarding buttons when nothing is tracked.
+- **Full-page dashboard** — clicking the activity-bar logo opens the
+  dashboard as an editor tab: live countdown to the next resume, health
+  chips, activity timeline, and a schedule composer covering all four
+  decisions — project (any workspace, current preselected), session
+  plates (which conversation to continue), custom resume prompt, and
+  when/tier. One-click cancel with per-workspace cards for everything
+  else being tracked.
 - **Status bar** — live task state for the open workspace
   (`waiting · 20:00`, `resuming…`, `done`, `failed`, …), refreshed on
   state-file changes plus a 5-second fallback poll. Click it for the menu.
