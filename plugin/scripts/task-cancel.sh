@@ -23,5 +23,35 @@ if ! ar_task_set "$WS" status cancelled; then
 fi
 ar_journal_append "$WS" "cancelled" "was: $STATUS"
 ar_log "task-cancel: ws=$WS (was $STATUS)"
-echo "Cancelled tracked task in $WS (was: $STATUS). Any pending auto-resume will stand down."
+
+# Stop the daemon AND any in-flight resume right now — the state change
+# alone would only take effect at the next tick, and a claude process
+# already launched would keep running (and spending quota) until it
+# finished on its own.
+KILLED=""
+PIDFILE="$(ar_daemon_pidfile "$WS")"
+if [ -f "$PIDFILE" ]; then
+  DPID="$(cat "$PIDFILE" 2>/dev/null)"
+  if [ -n "$DPID" ] && kill -0 "$DPID" 2>/dev/null; then
+    DESCENDANTS=""
+    if command -v pgrep >/dev/null 2>&1; then
+      for c in $(pgrep -P "$DPID" 2>/dev/null); do
+        DESCENDANTS="$DESCENDANTS $c $(pgrep -P "$c" 2>/dev/null)"
+      done
+    fi
+    kill "$DPID" 2>/dev/null
+    for p in $DESCENDANTS; do
+      kill "$p" 2>/dev/null
+    done
+    ar_log "task-cancel: stopped daemon $DPID and children:$DESCENDANTS"
+    KILLED=1
+  fi
+  rm -f "$PIDFILE" 2>/dev/null
+fi
+
+if [ -n "$KILLED" ]; then
+  echo "Cancelled tracked task in $WS (was: $STATUS). Stopped the daemon and any in-flight resume."
+else
+  echo "Cancelled tracked task in $WS (was: $STATUS)."
+fi
 exit 0

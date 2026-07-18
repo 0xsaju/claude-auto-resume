@@ -192,3 +192,14 @@ notifier — exits nonzero when resumes can't work), and `list`
 (all tracked workspaces via new lib.sh `ar_task_list`, all three JSON
 engines). Deliberately stopping there — no shell completions, man pages,
 or config subcommands until someone needs them.
+
+## D19 — 2026-07-18 — cancel kills the daemon and in-flight resume immediately
+
+Real-world find: the user cancelled during a resume; the state flip
+preserved `cancelled` (post-D17 fix) but the already-launched claude
+process kept running — ~15 minutes of quota spent after an explicit
+cancel. `task-cancel.sh` now also reads the workspace's pidfile (shared
+helper `ar_daemon_pidfile` in lib.sh), kills the daemon and its
+descendants (best-effort via pgrep; skipped where pgrep is absent), and
+removes the pidfile. Cancel means stop — not "stop after the current
+attempt finishes".

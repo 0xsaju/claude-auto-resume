@@ -91,6 +91,9 @@ Living checklist for claude-auto-resume. Update before ending any session.
   - [x] `version`, `update`, `uninstall [--yes]` (dirty-checkout guard),
         `doctor` (env self-check), `list` (+ lib ar_task_list, all
         engines); tests 158 → 177
+- [x] **cancel = stop now** (2026-07-18, D19) — real-world find: an
+      in-flight resume kept burning quota ~15 min after cancel; cancel
+      now kills the daemon + descendants via pidfile; tests → 179
 
 ## In progress
 

@@ -217,9 +217,10 @@ task prompt, and the last journal entries.
 
 ### `claude-auto-resume cancel`
 
-Sets the task to `cancelled` and journals it. The daemon notices on its
-next tick and stands down. Cancelling during a `normal` tier's 60-second
-grace window aborts that resume.
+Sets the task to `cancelled`, journals it, and immediately stops the
+workspace's daemon **and any resume already in flight** (the claude
+process it launched). Cancelling during a `normal` tier's 60-second grace
+window aborts that resume.
 
 ### `claude-auto-resume list`
 

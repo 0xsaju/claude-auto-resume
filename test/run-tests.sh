@@ -431,6 +431,23 @@ wait "$DPID" 2>/dev/null
 t_eq "daemon: cancel during in-flight resume preserved" "cancelled" "$(ar_task_get "$WS12" status)"
 t_contains "daemon: in-flight cancel journaled" "resume-finished" "$(ar_journal_show "$WS12" 5)"
 
+# cancel kills the daemon (and any children) immediately, not next tick
+WS13="$DTMP/ws-cancel-kills"; mkdir -p "$WS13"
+(cd "$WS13" && AR_NO_DAEMON=1 bash "$PLUGIN/scripts/task-resume-at.sh" 45m >/dev/null)
+AR_DAEMON_TICK_SECS=600 bash "$PLUGIN/scripts/daemon.sh" "$WS13" &
+DPID=$!
+sleep 1
+(cd "$WS13" && bash "$PLUGIN/scripts/task-cancel.sh" >/dev/null)
+sleep 1
+if kill -0 "$DPID" 2>/dev/null; then
+  kill "$DPID" 2>/dev/null
+  fail "cancel: kills waiting daemon immediately" "daemon $DPID survived cancel"
+else
+  ok "cancel: kills waiting daemon immediately"
+fi
+wait "$DPID" 2>/dev/null
+t_eq "cancel: status set" "cancelled" "$(ar_task_get "$WS13" status)"
+
 # daemon: pidfiles cleaned up
 if ls "$DTMP"/daemons/*.pid >/dev/null 2>&1; then
   fail "daemon: pidfiles cleaned up" "$(ls "$DTMP"/daemons/)"

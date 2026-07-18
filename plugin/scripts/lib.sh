@@ -528,6 +528,11 @@ ar_journal_append() {
   printf '%s\n' "$new" | ar_state_write
 }
 
+ar_daemon_pidfile() {
+  # $1: workspace -> the pidfile path its daemon uses (D11)
+  printf '%s/daemons/%s.pid\n' "$AR_HOME" "$(printf '%s' "$1" | cksum | awk '{print $1}')"
+}
+
 ar_task_list() {
   # All tracked workspace paths, one per line.
   [ -f "$AR_STATE_FILE" ] || return 0

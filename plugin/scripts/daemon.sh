@@ -40,8 +40,7 @@ EXTRA_ARGS="${CLAUDE_AUTO_RESUME_EXTRA_ARGS:-${AR_CFG_EXTRA_ARGS:-}}"
 # One daemon per workspace: pidfile keyed by a hash of the path (kept
 # outside state.json — the pid is host-local, not contract data; D11).
 mkdir -p "$AR_HOME/daemons" 2>/dev/null
-WS_HASH="$(printf '%s' "$WS" | cksum | awk '{print $1}')"
-PIDFILE="$AR_HOME/daemons/$WS_HASH.pid"
+PIDFILE="$(ar_daemon_pidfile "$WS")"
 if [ -f "$PIDFILE" ]; then
   OLD_PID="$(cat "$PIDFILE" 2>/dev/null)"
   if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
