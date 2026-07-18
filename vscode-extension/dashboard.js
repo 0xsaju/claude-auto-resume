@@ -41,7 +41,8 @@ const EVENT_ICON = {
   'task-started': '🏁',
 };
 
-let panel; // singleton
+let panel; // singleton tab panel
+let sidebarView; // webview view in the activity-bar sidebar
 
 function esc(s) {
   return String(s ?? '')
@@ -51,21 +52,8 @@ function esc(s) {
     .replace(/"/g, '&quot;');
 }
 
-function createOrShow(context, host) {
-  if (panel) {
-    panel.reveal();
-    return panel;
-  }
-  panel = vscode.window.createWebviewPanel(
-    'claudeAutoResume.dashboard',
-    'Claude Auto-Resume',
-    vscode.ViewColumn.One,
-    { enableScripts: true, retainContextWhenHidden: true }
-  );
-  panel.iconPath = vscode.Uri.file(
-    path.join(context.extensionPath, 'icon.png')
-  );
-  panel.webview.onDidReceiveMessage(async (msg) => {
+function attach(webview, host) {
+  return webview.onDidReceiveMessage(async (msg) => {
     switch (msg.type) {
       case 'schedule':
         await host.schedule(msg.ws, msg.when, msg.tier);
@@ -85,18 +73,50 @@ function createOrShow(context, host) {
       case 'install':
         host.installCli();
         break;
+      case 'openFull':
+        vscode.commands.executeCommand('claudeAutoResume.openDashboard');
+        break;
     }
   });
+}
+
+function createOrShow(context, host) {
+  if (panel) {
+    panel.reveal();
+    return panel;
+  }
+  panel = vscode.window.createWebviewPanel(
+    'claudeAutoResume.dashboard',
+    'Claude Auto-Resume',
+    vscode.ViewColumn.One,
+    { enableScripts: true, retainContextWhenHidden: true }
+  );
+  panel.iconPath = vscode.Uri.file(
+    path.join(context.extensionPath, 'icon.png')
+  );
+  attach(panel.webview, host);
   panel.onDidDispose(() => {
     panel = undefined;
   });
-  panel.webview.html = render(host.collectState());
+  panel.webview.html = render(host.collectState(), { compact: false });
   return panel;
 }
 
+// Sidebar webview view: clicking the activity-bar logo shows the dashboard.
+function resolveSidebar(webviewView, host) {
+  sidebarView = webviewView;
+  webviewView.webview.options = { enableScripts: true };
+  attach(webviewView.webview, host);
+  webviewView.onDidDispose(() => {
+    sidebarView = undefined;
+  });
+  webviewView.webview.html = render(host.collectState(), { compact: true });
+}
+
 function update(host) {
-  if (!panel) return;
-  panel.webview.html = render(host.collectState());
+  if (panel) panel.webview.html = render(host.collectState(), { compact: false });
+  if (sidebarView)
+    sidebarView.webview.html = render(host.collectState(), { compact: true });
 }
 
 function chip(ok, okText, badText) {
@@ -256,7 +276,8 @@ function timeline(task) {
   return `<h3 class="section-title">Activity</h3><section class="card"><ul class="timeline">${rows}</ul></section>`;
 }
 
-function render(state) {
+function render(state, opts) {
+  const compact = Boolean(opts && opts.compact);
   const task = state.currentWs ? state.tasks[state.currentWs] : undefined;
   const hooksOk = state.hooksVia !== null;
   return `<!DOCTYPE html>
@@ -361,9 +382,24 @@ function render(state) {
     background: var(--vscode-input-background); color: var(--vscode-input-foreground);
   }
   .custom-row input { flex: 1; }
-  footer { display: flex; gap: 16px; margin-top: 26px; font-size: 11.5px; color: var(--vscode-descriptionForeground); align-items: center; }
+  footer { display: flex; gap: 16px; margin-top: 26px; font-size: 11.5px; color: var(--vscode-descriptionForeground); align-items: center; flex-wrap: wrap; }
   footer a { color: var(--vscode-textLink-foreground); text-decoration: none; cursor: pointer; }
   footer .spacer { margin-left: auto; }
+  ${
+    compact
+      ? `body { padding: 12px; }
+  .wrap { max-width: none; }
+  header.top { flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .chips { width: 100%; order: 3; }
+  .card { padding: 14px; }
+  .hero-top { flex-direction: column; }
+  .hero-actions { flex-direction: row; min-width: 0; }
+  .count { font-size: 24px; }
+  .custom-row { flex-wrap: wrap; }
+  .grid { grid-template-columns: 1fr; }
+  footer .statefile { display: none; }`
+      : ''
+  }
 </style>
 </head>
 <body>
@@ -404,11 +440,12 @@ function render(state) {
   ${timeline(task)}
 
   <footer>
+    ${compact ? '<a id="openFull">Open full view</a>' : ''}
     <a id="openLog">Log</a>
     <a id="openConfig">Config</a>
     <a href="https://github.com/0xsaju/claude-auto-resume">GitHub</a>
     <span class="spacer"></span>
-    <span>state: ~/.claude/auto-resume/state.json · live</span>
+    <span class="statefile">state: ~/.claude/auto-resume/state.json · live</span>
   </footer>
 </div>
 <script>
@@ -417,6 +454,7 @@ function render(state) {
   const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
 
   $('#refresh').addEventListener('click', () => vscode.postMessage({ type: 'refresh' }));
+  const full = $('#openFull'); if (full) full.addEventListener('click', () => vscode.postMessage({ type: 'openFull' }));
   const inst = $('#install'); if (inst) inst.addEventListener('click', () => vscode.postMessage({ type: 'install' }));
   $('#openLog').addEventListener('click', () => vscode.postMessage({ type: 'openLog' }));
   $('#openConfig').addEventListener('click', () => vscode.postMessage({ type: 'openConfig' }));
@@ -464,4 +502,4 @@ function render(state) {
 </html>`;
 }
 
-module.exports = { createOrShow, update };
+module.exports = { createOrShow, resolveSidebar, update };

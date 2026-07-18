@@ -33,7 +33,6 @@ const CONFIG_TEMPLATE = `# claude-auto-resume configuration (shell syntax, AR_CF
 
 let statusItem;
 let output;
-let taskProvider;
 
 // ---------------------------------------------------------------- helpers --
 
@@ -84,23 +83,8 @@ function readTask() {
   return ws ? readAllTasks()[ws] : undefined;
 }
 
-function statusIcon(status) {
-  return (
-    {
-      waiting: 'clock',
-      resuming: 'sync',
-      running: 'play',
-      'limit-hit': 'warning',
-      done: 'check',
-      failed: 'error',
-      cancelled: 'circle-slash',
-    }[status] || 'question'
-  );
-}
-
 function refreshAll() {
   refreshStatusBar();
-  if (taskProvider) taskProvider.refresh();
   dashboard.update(host);
 }
 
@@ -196,49 +180,6 @@ const host = {
   openConfig: () => openConfig(),
   installCli: () => installCli(),
 };
-
-// ---------------------------------------------------------- tasks sidebar --
-
-class TaskProvider {
-  constructor() {
-    this._emitter = new vscode.EventEmitter();
-    this.onDidChangeTreeData = this._emitter.event;
-  }
-
-  refresh() {
-    this._emitter.fire(undefined);
-  }
-
-  getChildren(element) {
-    if (!element) {
-      const tasks = readAllTasks();
-      const current = workspacePath();
-      return Object.keys(tasks)
-        .sort((a, b) =>
-          a === current ? -1 : b === current ? 1 : a.localeCompare(b)
-        )
-        .map((ws) => ({ kind: 'task', ws, task: tasks[ws] }));
-    }
-    return [];
-  }
-
-  getTreeItem(element) {
-    const item = new vscode.TreeItem(
-      path.basename(element.ws),
-      vscode.TreeItemCollapsibleState.None
-    );
-    item.id = element.ws;
-    item.description = `${element.task.status} · ${element.task.importance}`;
-    item.tooltip = `${element.ws}\nClick to open the dashboard.`;
-    item.contextValue = 'task';
-    item.iconPath = new vscode.ThemeIcon(statusIcon(element.task.status));
-    item.command = {
-      command: 'claudeAutoResume.openDashboard',
-      title: 'Open Dashboard',
-    };
-    return item;
-  }
-}
 
 // --------------------------------------------------------------- status bar --
 
@@ -403,10 +344,10 @@ async function activate(context) {
   statusItem.show();
   context.subscriptions.push(output, statusItem);
 
-  taskProvider = new TaskProvider();
+  // Sidebar = the dashboard itself (clicking the activity-bar logo opens it).
   context.subscriptions.push(
-    vscode.window.createTreeView('claudeAutoResume.tasks', {
-      treeDataProvider: taskProvider,
+    vscode.window.registerWebviewViewProvider('claudeAutoResume.dashboardView', {
+      resolveWebviewView: (view) => dashboard.resolveSidebar(view, host),
     })
   );
 
@@ -418,8 +359,6 @@ async function activate(context) {
     vscode.commands.registerCommand('claudeAutoResume.status', showStatus),
     vscode.commands.registerCommand('claudeAutoResume.scheduleResume', scheduleResume),
     vscode.commands.registerCommand('claudeAutoResume.cancel', cancelTask),
-    vscode.commands.registerCommand('claudeAutoResume.scheduleResumeItem', scheduleResume),
-    vscode.commands.registerCommand('claudeAutoResume.cancelTaskItem', cancelTask),
     vscode.commands.registerCommand('claudeAutoResume.refreshView', refreshAll),
     vscode.commands.registerCommand('claudeAutoResume.openLog', openLog),
     vscode.commands.registerCommand('claudeAutoResume.openConfig', openConfig),
