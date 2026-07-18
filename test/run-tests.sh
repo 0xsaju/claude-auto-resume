@@ -97,9 +97,12 @@ state_suite() {
   t_eq "$eng: first task intact" "waiting" "$(ar_task_get "$WS" status)"
   t_eq "$eng: first prompt intact" "$PROMPT" "$(ar_task_get "$WS" original_prompt)"
 
-  # 7. task_exists
+  # 7. task_exists + list
   ar_task_exists "$WS" && ok "$eng: task_exists true" || fail "$eng: task_exists true"
   ar_task_exists "/nope" && fail "$eng: task_exists false" || ok "$eng: task_exists false"
+  LISTED="$(ar_task_list)"
+  t_contains "$eng: task_list has first ws" "$WS" "$LISTED"
+  t_contains "$eng: task_list has second ws" "$WS2" "$LISTED"
 
   # 8. atomic write leaves no temp litter
   if ls "$tmp"/state.json.tmp.* >/dev/null 2>&1; then
@@ -452,8 +455,12 @@ CWS="$CTMP/cli-ws"; mkdir -p "$CWS"
 
 t_contains "cli: status with no task" "No tracked task" "$(cd "$CWS" && bash "$CLI" status)"
 t_contains "cli: default command is status" "No tracked task" "$(cd "$CWS" && bash "$CLI")"
+t_contains "cli: empty list" "No tracked tasks." "$(bash "$CLI" list)"
 (cd "$CWS" && bash "$CLI" start normal "cli smoke task" >/dev/null)
 t_eq "cli: start tracks task" "normal" "$(ar_task_get "$CWS" importance)"
+LOUT="$(bash "$CLI" list)"
+t_contains "cli: list shows workspace" "$CWS" "$LOUT"
+t_contains "cli: list shows status column" "running" "$LOUT"
 t_contains "cli: resume-at schedules" "Resume scheduled." "$(cd "$CWS" && AR_NO_DAEMON=1 bash "$CLI" resume-at 30m)"
 (cd "$CWS" && bash "$CLI" cancel >/dev/null)
 t_eq "cli: cancel works" "cancelled" "$(ar_task_get "$CWS" status)"
@@ -465,6 +472,18 @@ case "$HOUT" in
   *"set -u"*) fail "cli: help leaks no code" "$HOUT" ;;
   *) ok "cli: help leaks no code" ;;
 esac
+t_contains "cli: version" "claude-auto-resume 0.2.0" "$(bash "$CLI" version)"
+t_contains "cli: --version flag" "claude-auto-resume 0.2.0" "$(bash "$CLI" --version)"
+DOUT="$(CLAUDE_AUTO_RESUME_CLAUDE_BIN="$HERE/fake-claude.sh" bash "$CLI" doctor)"
+DRC=$?
+t_eq "cli: doctor exits 0 when healthy" "0" "$DRC"
+t_contains "cli: doctor reports claude" "claude" "$DOUT"
+t_contains "cli: doctor reports json engine" "engine:" "$DOUT"
+t_contains "cli: doctor reports daemons" "daemons" "$DOUT"
+DOUT="$(CLAUDE_AUTO_RESUME_CLAUDE_BIN="/nonexistent-claude" bash "$CLI" doctor)"
+DRC=$?
+t_eq "cli: doctor exits 1 when claude missing" "1" "$DRC"
+t_contains "cli: doctor flags missing claude" "MISS" "$DOUT"
 rm -rf "$CTMP"
 
 # --------------------------------------------------------------- installer --
@@ -482,6 +501,17 @@ if command -v git >/dev/null 2>&1 && [ -d "$ROOT/.git" ]; then
   t_contains "installer: installed CLI runs through symlink" "No tracked task" "$OUT"
   OUT="$(CAR_REPO_URL="$ROOT" CAR_INSTALL_DIR="$ITMP/app" CAR_BIN_DIR="$ITMP/bin" bash "$ROOT/install.sh" 2>&1)"
   t_contains "installer: re-run updates in place" "Updating existing install" "$OUT"
+  # the clone has the last committed CLI; test the working-tree CLI
+  # against the installed layout (committed in the clone so uninstall's
+  # dirty-checkout guard doesn't trip)
+  cp "$ROOT/bin/claude-auto-resume" "$ITMP/app/bin/claude-auto-resume"
+  git -C "$ITMP/app" -c user.email=test@test -c user.name=test commit -qam "test cli" 2>/dev/null
+  OUT="$("$ITMP/bin/claude-auto-resume" uninstall --yes 2>&1)"
+  t_contains "cli: uninstall reports" "Removed" "$OUT"
+  [ ! -e "$ITMP/app" ] && [ ! -e "$ITMP/bin/claude-auto-resume" ] && ok "cli: uninstall removes app and link" \
+    || fail "cli: uninstall removes app and link" "$(ls "$ITMP" "$ITMP/bin" 2>/dev/null)"
+  # reinstall, then the installer's own --uninstall path
+  CAR_REPO_URL="$ROOT" CAR_INSTALL_DIR="$ITMP/app" CAR_BIN_DIR="$ITMP/bin" bash "$ROOT/install.sh" >/dev/null 2>&1
   OUT="$(CAR_INSTALL_DIR="$ITMP/app" CAR_BIN_DIR="$ITMP/bin" bash "$ROOT/install.sh" --uninstall 2>&1)"
   t_contains "installer: uninstall reports" "Removed" "$OUT"
   [ ! -e "$ITMP/app" ] && [ ! -e "$ITMP/bin/claude-auto-resume" ] && ok "installer: uninstall removes app and link" \

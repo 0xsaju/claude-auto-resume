@@ -177,3 +177,18 @@ the session_id for a true --resume. The task-*.sh scripts remain as the
 CLI's backends; user-facing strings now show CLI syntax. Users who
 installed the earlier plugin build should reinstall (or /plugin update) to
 drop the stale commands.
+
+## D18 — 2026-07-18 — Full tool surface: version / update / uninstall / doctor / list; version 0.2.0
+
+User direction (reversing the earlier "no versioning, no updating" after
+reflection): the CLI must behave like a real terminal tool, not a script.
+Added: `version` (single source of truth = plugin.json's version field,
+plus git short rev), `update` (git pull --ff-only in the install root;
+falls back to pointing at the installer), `uninstall [--yes]` (removes
+install dir + CLI link, keeps runtime state, refuses on a dirty checkout
+so it can't delete a development copy, requires a TTY or --yes),
+`doctor` (claude binary, JSON engine, state health, running/stale daemons,
+notifier — exits nonzero when resumes can't work), and `list`
+(all tracked workspaces via new lib.sh `ar_task_list`, all three JSON
+engines). Deliberately stopping there — no shell completions, man pages,
+or config subcommands until someone needs them.

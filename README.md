@@ -128,8 +128,13 @@ All commands operate on the current directory's task (alias suggestion:
 | `resume-at [when] [tier]` | Schedule an auto-resume. No `when` = auto-detect the reset. Accepts `auto`, `20:00`, `2h30m`, `45m`, ISO-8601, `now`. |
 | `start <tier> <description>` | Track this workspace as a resumable task (`critical` \| `normal` \| `low`). |
 | `status` | Show status, schedule, attempts, recent journal. (Default when no command given.) |
+| `list` | All tracked workspaces with status and tier. |
 | `cancel` | Cancel; a pending resume stands down within one tick. |
 | `log [n]` / `watch` | Show / follow the daemon log. |
+| `doctor` | Environment self-check: claude binary, JSON engine, state file, daemons, notifier. |
+| `update` | Update to the latest version (`git pull` under the hood). |
+| `uninstall [--yes]` | Remove the tool (keeps your task state and logs). |
+| `version` | Print the version. |
 
 ## Documentation
 

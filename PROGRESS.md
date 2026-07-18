@@ -87,6 +87,10 @@ Living checklist for claude-auto-resume. Update before ending any session.
   - [x] cancel during an in-flight resume is no longer overwritten by
         done/failed when the claude process finishes
   - [x] CLI --help no longer leaks a code line; tests 153 → 158
+- [x] **Full tool surface, v0.2.0** (2026-07-18, D18)
+  - [x] `version`, `update`, `uninstall [--yes]` (dirty-checkout guard),
+        `doctor` (env self-check), `list` (+ lib ar_task_list, all
+        engines); tests 158 → 177
 
 ## In progress
 

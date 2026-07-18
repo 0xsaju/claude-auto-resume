@@ -297,6 +297,9 @@ elif op == "journal":
     t = tasks.setdefault(ws, dict(DEFAULTS))
     t.setdefault("journal", []).append({"ts": ts, "event": event, "detail": detail})
     print(json.dumps(state, indent=2))
+elif op == "list":
+    for k in tasks:
+        print(k)
 elif op == "journal_show":
     ws, n = rest[0], int(rest[1])
     for e in tasks.get(ws, {}).get("journal", [])[-n:]:
@@ -523,6 +526,23 @@ ar_journal_append() {
     return 1
   fi
   printf '%s\n' "$new" | ar_state_write
+}
+
+ar_task_list() {
+  # All tracked workspace paths, one per line.
+  [ -f "$AR_STATE_FILE" ] || return 0
+  local eng
+  eng="$(ar_json_engine)"
+  case "$eng" in
+    jq) jq -r '.tasks | keys[]' "$AR_STATE_FILE" 2>/dev/null ;;
+    python3) ar__py list ;;
+    *)
+      sed -n 's/^    "\(.*\)": {$/\1/p' "$AR_STATE_FILE" | while IFS= read -r k; do
+        ar_json_unescape "$k"
+        echo
+      done
+      ;;
+  esac
 }
 
 ar_journal_show() {

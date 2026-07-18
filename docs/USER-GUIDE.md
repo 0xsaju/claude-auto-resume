@@ -39,9 +39,10 @@ and links the CLI into `~/.local/bin`, no root needed):
 curl -fsSL https://raw.githubusercontent.com/0xsaju/claude-auto-resume/main/install.sh | bash
 ```
 
-Re-running the same command updates the install. Uninstall with
-`... | bash -s -- --uninstall` (your task state and logs are kept unless
-you delete `~/.claude/auto-resume` yourself).
+After that, the tool manages itself: `claude-auto-resume update` /
+`claude-auto-resume uninstall` / `claude-auto-resume doctor`. (Re-running
+the curl command also updates; `... | bash -s -- --uninstall` also
+uninstalls.)
 
 Verify:
 
@@ -220,9 +221,37 @@ Sets the task to `cancelled` and journals it. The daemon notices on its
 next tick and stands down. Cancelling during a `normal` tier's 60-second
 grace window aborts that resume.
 
+### `claude-auto-resume list`
+
+All tracked workspaces with their status and tier.
+
 ### `claude-auto-resume log [n]` / `claude-auto-resume watch`
 
 Show the last `n` lines (default 40) of the tool's log, or follow it live.
+
+### `claude-auto-resume doctor`
+
+Environment self-check: install location, claude binary on PATH, JSON
+engine in use, state file health, running/stale daemons, notification
+mechanism. Exits nonzero if resumes can't work (claude missing).
+
+### `claude-auto-resume update`
+
+Updates the install in place (`git pull` under the hood; falls back to
+pointing you at the installer). After updating, refresh the Claude Code
+plugin inside a session if you use it.
+
+### `claude-auto-resume uninstall [--yes]`
+
+Removes the install directory and the CLI link after confirmation
+(`--yes` skips the prompt). Your task state and logs under
+`~/.claude/auto-resume` are kept; the command prints how to remove them.
+Refuses to run on a checkout with uncommitted changes so it can't eat a
+development copy.
+
+### `claude-auto-resume version`
+
+Prints the version and git revision.
 
 ## 6. Configuration
 

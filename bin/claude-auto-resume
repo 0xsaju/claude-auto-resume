@@ -1,22 +1,27 @@
 #!/usr/bin/env bash
-# claude-auto-resume — zero-token terminal CLI (D15).
+# claude-auto-resume — auto-resume Claude Code tasks after usage-limit hits.
 #
-# The primary interface for claude-auto-resume: zero token cost, and works
-# while rate-limited (when no in-session command could run). The plugin
-# part of this repo contributes only the hooks (automatic detection).
+# Zero token cost; works while rate-limited (when no in-session command
+# could run). The Claude Code plugin in this repo contributes only the
+# detection hooks.
 #
 # Usage:
 #   claude-auto-resume [status]                     show this workspace's task
 #   claude-auto-resume start <tier> <description>   track this workspace
 #   claude-auto-resume resume-at [when] [tier]      schedule resume (default: auto)
 #   claude-auto-resume cancel                       cancel tracking
+#   claude-auto-resume list                         all tracked workspaces
 #   claude-auto-resume log [n]                      last n log lines (default 40)
 #   claude-auto-resume watch                        follow the log live
+#   claude-auto-resume doctor                       check the environment
+#   claude-auto-resume update                       update to the latest version
+#   claude-auto-resume uninstall [--yes]            remove the tool
+#   claude-auto-resume version                      print the version
 #
 # Suggested alias:  alias car='claude-auto-resume'
 set -u
 
-# Resolve symlinks so `ln -s .../bin/claude-auto-resume ~/bin/` works.
+ORIG0="$0"
 SELF="$0"
 while [ -L "$SELF" ]; do
   DIR="$(cd "$(dirname "$SELF")" && pwd)"
@@ -27,8 +32,9 @@ while [ -L "$SELF" ]; do
   esac
 done
 SELF_DIR="$(cd "$(dirname "$SELF")" && pwd)"
+ROOT="$(cd "$SELF_DIR/.." && pwd)"
 
-SCRIPTS_DIR="${CLAUDE_AUTO_RESUME_PLUGIN_DIR:-$SELF_DIR/../plugin}/scripts"
+SCRIPTS_DIR="${CLAUDE_AUTO_RESUME_PLUGIN_DIR:-$ROOT/plugin}/scripts"
 if [ ! -f "$SCRIPTS_DIR/lib.sh" ]; then
   echo "claude-auto-resume: plugin scripts not found at $SCRIPTS_DIR"
   echo "Set CLAUDE_AUTO_RESUME_PLUGIN_DIR to the plugin directory."
@@ -36,10 +42,20 @@ if [ ! -f "$SCRIPTS_DIR/lib.sh" ]; then
 fi
 
 LOG_FILE="${CLAUDE_AUTO_RESUME_LOG_DIR:-$HOME/.claude/auto-resume/logs}/plugin.log"
+INSTALL_URL="https://raw.githubusercontent.com/0xsaju/claude-auto-resume/main/install.sh"
 
 usage() {
   # Print the header comment block (from line 4) up to the first non-comment.
   awk 'NR > 3 { if ($0 !~ /^#/) exit; sub(/^# ?/, ""); print }' "$SELF"
+}
+
+car_version() {
+  sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+    "$ROOT/plugin/.claude-plugin/plugin.json" 2>/dev/null | head -1
+}
+
+car_gitrev() {
+  git -C "$ROOT" rev-parse --short HEAD 2>/dev/null
 }
 
 CMD="${1:-status}"
@@ -48,24 +64,139 @@ if [ $# -gt 0 ]; then shift; fi
 case "$CMD" in
   status)
     exec bash "$SCRIPTS_DIR/task-status.sh" ;;
+
   start)
     exec bash "$SCRIPTS_DIR/task-start.sh" "$@" ;;
+
   resume-at|resume)
     exec bash "$SCRIPTS_DIR/task-resume-at.sh" "$@" ;;
+
   cancel)
     exec bash "$SCRIPTS_DIR/task-cancel.sh" ;;
+
+  list|ls)
+    # shellcheck disable=SC1091
+    . "$SCRIPTS_DIR/lib.sh" || exit 1
+    FOUND=0
+    while IFS= read -r ws; do
+      [ -n "$ws" ] || continue
+      if [ "$FOUND" -eq 0 ]; then
+        printf '%-10s %-9s %s\n' "STATUS" "TIER" "WORKSPACE"
+      fi
+      FOUND=1
+      printf '%-10s %-9s %s\n' "$(ar_task_get "$ws" status)" "$(ar_task_get "$ws" importance)" "$ws"
+    done <<EOF
+$(ar_task_list)
+EOF
+    [ "$FOUND" -eq 1 ] || echo "No tracked tasks."
+    exit 0 ;;
+
   log)
     if [ -f "$LOG_FILE" ]; then
       exec tail -n "${1:-40}" "$LOG_FILE"
     fi
     echo "No log yet at $LOG_FILE"
     exit 0 ;;
+
   watch)
     touch "$LOG_FILE" 2>/dev/null
     exec tail -f "$LOG_FILE" ;;
+
+  doctor)
+    # shellcheck disable=SC1091
+    . "$SCRIPTS_DIR/lib.sh" || { echo "broken install: cannot load lib.sh"; exit 1; }
+    RC=0
+    REV="$(car_gitrev)"
+    echo "claude-auto-resume $(car_version)${REV:+ ($REV)}"
+    printf '  %-8s %-5s %s\n' "install" "ok" "$ROOT"
+    CB="${CLAUDE_AUTO_RESUME_CLAUDE_BIN:-${AR_CFG_CLAUDE_BIN:-claude}}"
+    if command -v "$CB" >/dev/null 2>&1; then
+      printf '  %-8s %-5s %s\n' "claude" "ok" "$(command -v "$CB")"
+    else
+      printf '  %-8s %-5s %s\n' "claude" "MISS" "'$CB' not found — resumes cannot run"
+      RC=1
+    fi
+    printf '  %-8s %-5s %s\n' "json" "ok" "engine: $(ar_json_engine)"
+    if [ -f "$AR_STATE_FILE" ]; then
+      N="$(ar_task_list | grep -c . || true)"
+      printf '  %-8s %-5s %s\n' "state" "ok" "$AR_STATE_FILE ($N task(s))"
+    else
+      printf '  %-8s %-5s %s\n' "state" "ok" "none yet (will be $AR_STATE_FILE)"
+    fi
+    RUNNING=0; STALE=0
+    for p in "$AR_HOME/daemons"/*.pid; do
+      [ -e "$p" ] || break
+      if kill -0 "$(cat "$p" 2>/dev/null)" 2>/dev/null; then
+        RUNNING=$((RUNNING + 1))
+      else
+        STALE=$((STALE + 1))
+      fi
+    done
+    printf '  %-8s %-5s %s\n' "daemons" "ok" "$RUNNING running, $STALE stale"
+    if command -v osascript >/dev/null 2>&1; then
+      printf '  %-8s %-5s %s\n' "notify" "ok" "osascript"
+    elif command -v notify-send >/dev/null 2>&1; then
+      printf '  %-8s %-5s %s\n' "notify" "ok" "notify-send"
+    else
+      printf '  %-8s %-5s %s\n' "notify" "ok" "log-only (no desktop notifier found)"
+    fi
+    exit "$RC" ;;
+
+  update)
+    if [ -d "$ROOT/.git" ] && command -v git >/dev/null 2>&1; then
+      echo "Updating $ROOT ..."
+      if ! git -C "$ROOT" pull --ff-only; then
+        echo "Update failed. Re-run the installer instead:"
+        echo "  curl -fsSL $INSTALL_URL | bash"
+        exit 1
+      fi
+      REV="$(car_gitrev)"
+      echo "Now at $(car_version)${REV:+ ($REV)}."
+      echo "If the Claude Code plugin is installed, refresh it inside a session:"
+      echo "  /plugin uninstall claude-auto-resume, /plugin install claude-auto-resume@auto-resume, /reload-plugins"
+    else
+      echo "This install is not a git clone. Re-run the installer to update:"
+      echo "  curl -fsSL $INSTALL_URL | bash"
+    fi
+    exit 0 ;;
+
+  uninstall)
+    if [ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ]; then
+      echo "Refusing: $ROOT has uncommitted changes — this looks like a development checkout."
+      exit 1
+    fi
+    if [ "${1:-}" != "--yes" ]; then
+      printf 'Remove %s and its CLI link? [y/N] ' "$ROOT"
+      if ! read -r ANS </dev/tty 2>/dev/null; then
+        echo ""
+        echo "No terminal for confirmation — run: claude-auto-resume uninstall --yes"
+        exit 1
+      fi
+      case "$ANS" in y|Y|yes|YES) ;; *) echo "Aborted."; exit 0 ;; esac
+    fi
+    [ -L "$ORIG0" ] && rm -f "$ORIG0"
+    FOUND_LINK="$(command -v claude-auto-resume 2>/dev/null || true)"
+    if [ -n "$FOUND_LINK" ] && [ -L "$FOUND_LINK" ]; then
+      case "$(readlink "$FOUND_LINK")" in
+        "$ROOT"*) rm -f "$FOUND_LINK" ;;
+      esac
+    fi
+    rm -rf "$ROOT"
+    echo "Removed."
+    echo "Kept your task state and logs. To remove them too:"
+    echo "  rm -rf ~/.claude/auto-resume"
+    echo "If the plugin is installed in Claude Code:  /plugin uninstall claude-auto-resume"
+    exit 0 ;;
+
+  version|--version|-V)
+    REV="$(car_gitrev)"
+    echo "claude-auto-resume $(car_version)${REV:+ ($REV)}"
+    exit 0 ;;
+
   help|-h|--help)
     usage
     exit 0 ;;
+
   *)
     echo "claude-auto-resume: unknown command '$CMD'"
     echo
