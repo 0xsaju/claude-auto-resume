@@ -115,7 +115,7 @@ Tip: `alias car='claude-auto-resume'`.
 
 | Command | Description |
 |---|---|
-| `resume-at [when] [tier] [--session …] [--prompt …] [--workspace …]` | Schedule an auto-resume. No `when` = auto-detect the reset. Accepts `auto`, `20:00`, `2h30m`, `45m`, ISO-8601, `now`. `--session <n\|id\|latest\|new>` picks the conversation to continue (default: newest); `--prompt` sets the message the resumed session receives; `--workspace` targets another project. |
+| `resume-at [when] [tier] [--session …] [--prompt …] [--workspace …]` | Schedule an auto-resume. `when` accepts `reset` (you just hit a limit → resume at the exact reset time from your usage data, no probe), `auto` (arm and watch), `20:00`, `2h30m`, `45m`, ISO-8601, `now`. `--session <n\|id\|latest\|new>` picks the conversation to continue (default: newest); `--prompt` sets the message the resumed session receives; `--workspace` targets another project. |
 | `sessions [--workspace <path>]` | List a workspace's Claude Code sessions — pick which one resumes. |
 | `start <tier> <description>` | Track this workspace (`critical` \| `normal` \| `low`). |
 | `status` | Task state, tier, attempts, resume time, journal. *(default)* |

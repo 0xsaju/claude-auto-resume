@@ -523,3 +523,40 @@ is gone.
 rate-file watcher (launchd/cron), not a hook — more reliable, and it doesn't
 depend on the unproven assumption that hooks fire on a limit. Today you arm
 with one `resume-at auto`. No schema change.
+
+## D32 — 2026-07-19 — `resume-at reset`: confirmed-limit scheduling, no used_percentage
+
+Auto mode confirms a limit before resuming — via `used_percentage >= AR_LIMIT_PCT`
+(F4) or a failed probe (F1) — so it never resumes a healthy session (D27). But
+the exact `used_percentage` at a real block is unverified (C6): if it under-reads,
+a genuinely-limited user on the sensor path could sit "armed" instead of waiting
+for the reset.
+
+The insight (from a user): `resets_at` is *always* in the rate data (every 5-hour
+window has a rollover time); `used_percentage` is only needed to answer "are you
+blocked right now?" — which the human already knows the moment they hit the limit.
+So we don't need the percentage for the common "I just hit a limit" case.
+
+`resume-at reset`: you assert the limit yourself, and we schedule a **known-time**
+resume (`resume_mode=at`) to the local `resets_at` + `AR_RESET_GRACE_SECS`, with
+`limit_seen=1`, no probe and no `used_percentage`. It refuses (with guidance) when
+no local reset snapshot exists. This makes the everyday path robust regardless of
+the C6 threshold; `auto` still uses the percentage/probe for the arm-in-advance
+case (Situation B), where the tool genuinely must detect the limit itself. No
+schema change (reuses `resume_mode=at`).
+
+## D33 — 2026-07-19 — Remove the Claude Code plugin packaging
+
+With the hooks gone (D31), the plugin manifest (`plugin/.claude-plugin/plugin.json`)
+and marketplace (`.claude-plugin/marketplace.json`) described a plugin with **no
+hooks and no slash commands** — it did nothing. Worse, it was a footgun: a
+directory-source install left `${CLAUDE_PLUGIN_ROOT}` pointing at the repo, so
+after we deleted `on-stop.sh` the still-installed plugin fired a dead path on every
+session Stop ("on-stop.sh: No such file or directory").
+
+Removed both files. The CLI version moved from `plugin.json` to a top-level
+`VERSION` file (`car_version()` + the version test read it). The `plugin/`
+directory name is now legacy (just the engine scripts); renaming it was left out to
+avoid churning every `${...}/plugin/scripts` path. Existing users with the old
+plugin installed are told to `/plugin uninstall claude-auto-resume@auto-resume`
+(printed by `uninstall` and the installer's `--uninstall`).

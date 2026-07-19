@@ -59,8 +59,7 @@ usage() {
 }
 
 car_version() {
-  sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
-    "$ROOT/plugin/.claude-plugin/plugin.json" 2>/dev/null | head -1
+  head -1 "$ROOT/VERSION" 2>/dev/null | tr -d '[:space:]'
 }
 
 car_gitrev() {
@@ -176,8 +175,6 @@ EOF
       fi
       REV="$(car_gitrev)"
       echo "Now at $(car_version)${REV:+ ($REV)}."
-      echo "If the Claude Code plugin is installed, refresh it inside a session:"
-      echo "  /plugin uninstall claude-auto-resume, /plugin install claude-auto-resume@auto-resume, /reload-plugins"
     else
       echo "This install is not a git clone. Re-run the installer to update:"
       echo "  curl -fsSL $INSTALL_URL | bash"
@@ -210,7 +207,8 @@ EOF
     echo "Removed."
     echo "Kept your task state and logs. To remove them too:"
     echo "  rm -rf ~/.claude/auto-resume"
-    echo "If the plugin is installed in Claude Code:  /plugin uninstall claude-auto-resume"
+    echo "Had the old Claude Code plugin? Remove it inside a session (it no longer ships):"
+    echo "  /plugin uninstall claude-auto-resume@auto-resume"
     exit 0 ;;
 
   version|--version|-V)

@@ -13,8 +13,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 USAGE='Usage: claude-auto-resume resume-at [when] [critical|normal|low]
          [--session <n|id|latest|new>] [--prompt "<text>"] [--workspace <path>]
   [when] accepts:
-    (nothing) | auto           auto-detect: probe until the limit lifts,
-                               then resume (no reset time needed)
+    reset                      you just hit a limit: resume at the reset time
+                               your usage data already knows (+ safety grace),
+                               no probe, no quota
+    (nothing) | auto           arm and watch: resume whenever a limit hits and
+                               then lifts (uses live usage / a probe)
     2026-07-18T20:00:00+0600   ISO-8601 timestamp
     20:00                      clock time (next occurrence)
     2h30m | 45m | 3h           relative from now
@@ -92,10 +95,33 @@ parse_when() {
   ar_iso_to_epoch "$w"
 }
 
+# Safety buffer added after a known reset before we attempt the resume, so a
+# resume fired on the exact reset instant can't bounce off a still-active limit
+# (same knob the daemon uses; D30).
+RESET_GRACE="${AR_RESET_GRACE_SECS:-${AR_CFG_RESET_GRACE:-60}}"
+
 RESUME_MODE="at"
+CONFIRMED_LIMIT=""
 if [ "$WHEN" = "auto" ]; then
   RESUME_MODE="auto"
   EPOCH="$(date +%s)"   # in auto mode, resume_at is the next probe time
+elif [ "$WHEN" = "reset" ]; then
+  # Situation A: you already hit the limit — you confirmed it, so we don't
+  # consult used_percentage at all. Read the exact reset time from local usage
+  # data (D29/F4) and schedule a known-time resume (+ safety grace). Falls back
+  # with guidance when no local reset time exists.
+  if ar_rate_usable; then
+    RESET_EPOCH="$(ar_rate_get resets_at)"
+    EPOCH=$(( RESET_EPOCH + RESET_GRACE ))
+    CONFIRMED_LIMIT=1
+  else
+    echo "No local reset time found (no rate snapshot yet)."
+    echo "Options:"
+    echo "  claude-auto-resume resume-at auto      # watch and resume when a limit hits"
+    echo "  claude-auto-resume resume-at <time>    # if you know the reset time"
+    echo "  claude-auto-resume setup-statusline    # capture it for next time"
+    exit 0
+  fi
 else
   EPOCH="$(parse_when "$WHEN")" || EPOCH=""
 fi
@@ -170,8 +196,11 @@ fi
 
 # limit_seen/armed_noted are reset every schedule so a re-arm never
 # inherits a stale "already saw a limit" from a previous cycle (which
-# would let auto-detect resume a non-limited session immediately).
-FIELDS=("status=waiting" "resume_at=$RESUME_AT" "resume_mode=$RESUME_MODE" "session_id=$SESSION_ID" "limit_seen=0" "limit_seen_at=" "armed_noted=0" "armed_since=" "daemon_pid=")
+# would let auto-detect resume a non-limited session immediately). For a
+# `reset` schedule you confirmed the limit yourself, so limit_seen=1.
+LIMIT_SEEN_INIT=0
+[ -n "$CONFIRMED_LIMIT" ] && LIMIT_SEEN_INIT=1
+FIELDS=("status=waiting" "resume_at=$RESUME_AT" "resume_mode=$RESUME_MODE" "session_id=$SESSION_ID" "limit_seen=$LIMIT_SEEN_INIT" "limit_seen_at=" "armed_noted=0" "armed_since=" "daemon_pid=")
 if [ -n "$PROMPT_ARG" ]; then
   FIELDS+=("resume_prompt_template=$PROMPT_ARG")
 fi
@@ -210,7 +239,11 @@ if [ "$RESUME_MODE" = "auto" ]; then
 else
   DELTA=$((EPOCH - $(date +%s)))
   [ "$DELTA" -lt 0 ] && DELTA=0
-  echo "  resume at  : $RESUME_AT (~$((DELTA / 60)) min from now)"
+  if [ -n "$CONFIRMED_LIMIT" ]; then
+    echo "  resume at  : $RESUME_AT (~$((DELTA / 60)) min) — exact reset from your usage data +${RESET_GRACE}s"
+  else
+    echo "  resume at  : $RESUME_AT (~$((DELTA / 60)) min from now)"
+  fi
 fi
 if [ -n "$SESSION_ID" ]; then
   echo "  session    : $(printf '%.8s' "$SESSION_ID") — the original conversation continues (claude --resume)"

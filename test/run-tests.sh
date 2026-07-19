@@ -550,6 +550,23 @@ mkrate 100
 AR_RESET_GRACE_SECS=0 AR_DAEMON_ONESHOT=1 bash "$PLUGIN/scripts/daemon.sh" "$WSR2b"
 t_eq "rate: grace 0 schedules the exact reset" "$(ar_epoch_to_iso "$RFUT")" "$(ar_task_get "$WSR2b" resume_at)"
 
+# `resume-at reset` (Situation A): you confirmed the limit, so schedule a
+# known-time resume to the local reset + grace (mode=at), no probe, no
+# used_percentage. Rate says used=50 here on purpose — reset must NOT consult it.
+WSRR="$DTMP/ws-reset-kw"; mkdir -p "$WSRR"
+printf '{ "captured_at": %s, "resets_at": %s, "used_percentage": 50 }\n' "$(date +%s)" "$RFUT" > "$CLAUDE_AUTO_RESUME_RATE_FILE"
+(cd "$WSRR" && AR_NO_DAEMON=1 AR_RESET_GRACE_SECS=60 bash "$PLUGIN/scripts/task-resume-at.sh" reset critical >/dev/null)
+t_eq "reset: schedules known-time mode (not auto)" "at" "$(ar_task_get "$WSRR" resume_mode)"
+t_eq "reset: resume_at is reset + grace" "$(ar_epoch_to_iso $(( RFUT + 60 )))" "$(ar_task_get "$WSRR" resume_at)"
+t_eq "reset: marks the limit confirmed" "1" "$(ar_task_get "$WSRR" limit_seen)"
+# reset with NO local rate snapshot: refuses and guides, does not schedule
+WSRR2="$DTMP/ws-reset-norate"; mkdir -p "$WSRR2"
+rm -f "$CLAUDE_AUTO_RESUME_RATE_FILE"
+ROUT="$(cd "$WSRR2" && AR_NO_DAEMON=1 bash "$PLUGIN/scripts/task-resume-at.sh" reset 2>&1)"
+t_contains "reset: no rate snapshot is guided, not scheduled" "No local reset time" "$ROUT"
+t_eq "reset: nothing scheduled without a reset time" "" "$(ar_task_get "$WSRR2" resume_mode)"
+mkrate 100   # restore for the tests below
+
 # seen a limit, then usage fell: resumes via the sensor (no probe)
 WSR3="$DTMP/ws-rate-resume"; mkdir -p "$WSR3"
 (cd "$WSR3" && AR_NO_DAEMON=1 bash "$PLUGIN/scripts/task-resume-at.sh" auto critical >/dev/null)
@@ -797,8 +814,8 @@ case "$HOUT" in
   *) ok "cli: help leaks no code" ;;
 esac
 
-# version comes from the plugin manifest — read it, don't hardcode it
-MANIFEST_VER="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$HERE/../plugin/.claude-plugin/plugin.json" | head -1)"
+# version comes from the VERSION file — read it, don't hardcode it
+MANIFEST_VER="$(head -1 "$HERE/../VERSION" | tr -d '[:space:]')"
 t_contains "cli: version" "claude-auto-resume $MANIFEST_VER" "$(bash "$CLI" version)"
 t_contains "cli: --version flag" "claude-auto-resume $MANIFEST_VER" "$(bash "$CLI" --version)"
 DOUT="$(CLAUDE_AUTO_RESUME_CLAUDE_BIN="$HERE/fake-claude.sh" bash "$CLI" doctor)"

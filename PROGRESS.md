@@ -83,6 +83,16 @@ session. Detailed rationale for every decision: `docs/DECISIONS.md`
 
 ## Next
 
+- [x] **`resume-at reset` + removed the plugin packaging — 2026-07-19 (D32, D33).**
+      D32: a `reset` when-keyword for the everyday "I just hit a limit" case —
+      schedules a known-time resume to the local `resets_at` + grace (mode=at,
+      `limit_seen=1`), with **no probe and no `used_percentage`**, so it's robust
+      regardless of the unverified C6 threshold; refuses with guidance if no local
+      reset snapshot exists. `auto` still watches via percentage/probe for the
+      arm-in-advance case. +5 tests. D33: deleted the plugin manifest +
+      marketplace (a do-nothing plugin after D31, and the source of the stale
+      `on-stop.sh` Stop-hook crash for anyone who'd installed it); CLI version
+      moved to a top-level `VERSION` file. VERSION 0.6.0.
 - [x] **Removed the Claude Code Stop-hook path — 2026-07-19 (D31).** It never
       did anything functional (`detect_limit()` was a stub; F4 measured the
       reset time is not in the hook payload anyway), while the working path

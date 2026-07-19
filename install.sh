@@ -6,7 +6,6 @@
 # What it does (no root, no sudo):
 #   1. Clones (or updates) the repo into ~/.claude-auto-resume
 #   2. Symlinks the CLI into ~/.local/bin/claude-auto-resume
-#   3. Prints the optional in-session /plugin steps
 #
 # Uninstall:
 #   curl -fsSL .../install.sh | bash -s -- --uninstall
@@ -34,8 +33,8 @@ if [ "${1:-}" = "--uninstall" ]; then
   say ""
   say "Kept your runtime data (tasks, logs). To remove that too:"
   say "  rm -rf ~/.claude/auto-resume"
-  say "If the plugin is installed in Claude Code, run inside a session:"
-  say "  /plugin uninstall claude-auto-resume"
+  say "Had the old Claude Code plugin? Remove it inside a session (it no longer ships):"
+  say "  /plugin uninstall claude-auto-resume@auto-resume"
   exit 0
 fi
 

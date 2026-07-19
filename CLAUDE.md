@@ -17,11 +17,12 @@ path was removed 2026-07-19 (D31): detection reads local data, not hooks.
 - **C2 — Portable bash.** POSIX-compatible bash, no hard `jq` dependency
   (fallback chain: jq → python3 → awk/sed on canonical layout), no GNU-only
   flags without a BSD alternative. Target Linux + macOS; Windows best-effort.
-- **C3 — Engine layout.** The engine is plain scripts under
-  `plugin/scripts/` (the `plugin/.claude-plugin/plugin.json` manifest is
-  vestigial — no hooks, no slash commands). The CLI
-  (`bin/claude-auto-resume`) is the only interface (D17). No slash commands
-  (they cost tokens and can't run while limited).
+- **C3 — Engine layout.** The engine is plain scripts under `plugin/scripts/`
+  (the `plugin/` name is legacy — there is no Claude Code plugin anymore; the
+  plugin manifest + marketplace were removed with the hooks, D33). The CLI
+  (`bin/claude-auto-resume`) is the only interface (D17); version lives in the
+  top-level `VERSION` file. No slash commands (they cost tokens and can't run
+  while limited).
 - **C4 — Sensors never break the host.** The status-line sensor
   (`statusline.sh`) always `exit 0`, finishes fast, chains (never clobbers)
   any existing status line, never stderr noise. It must be invisible when it
@@ -47,10 +48,10 @@ path was removed 2026-07-19 (D31): detection reads local data, not hooks.
 - `plugin/scripts/task-*.sh` — command backends
   (task-resume-at.sh = scheduling + spawns the daemon, D10)
 - `bin/claude-auto-resume` — the CLI, the only interface (D15/D17)
-- `install.sh` — curl-pipe-bash installer; links the CLI (no hooks)
+- `VERSION` — the tool version (read by the CLI's `version`; bump on release)
+- `install.sh` — curl-pipe-bash installer; links the CLI (no hooks, no plugin)
 - `vscode-extension/` — cockpit MVP: plain JS, reads state.json, writes
   via CLI (D21); keep it thin, no build tooling
-- `.claude-plugin/marketplace.json` — local/GitHub install manifest
 - `test/fake-claude.sh` — claude CLI stub; `test/run-tests.sh` — test suite
 - `docs/USER-GUIDE.md` — user manual (keep in sync with behavior changes)
 - `docs/ARCHITECTURE.md` — full design; `docs/DECISIONS.md` — append-only

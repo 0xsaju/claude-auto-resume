@@ -138,19 +138,25 @@ From the project directory:
 
 ```sh
 cd ~/my/project
-claude-auto-resume resume-at
+claude-auto-resume resume-at reset
 ```
 
-Output:
+`reset` means "I just hit a limit — resume at the reset time my usage data
+already knows." It reads the exact reset straight from local data and
+schedules a precise, quota-free resume; because *you* confirmed the limit,
+it never has to guess from a usage percentage. Output:
 
 ```text
 Resume scheduled.
   workspace  : /Users/you/myproject
-  resume at  : auto-detect (probing every 30 min until the limit lifts)
+  resume at  : 2026-07-18T20:00:00+0600 (~184 min) — exact reset from your usage data +60s
   session    : 612fb08b — the original conversation continues (claude --resume)
   importance : critical
   daemon     : running detached, wakes every 60s
 ```
+
+(If no local reset time is available yet, `reset` tells you so and points you
+at `resume-at auto` or `setup-statusline` — see the table below.)
 
 Note the `session` line: the resume **continues the conversation that got
 interrupted**, via `claude --resume <session-id>` — it does not open a new
@@ -197,7 +203,8 @@ claude-auto-resume resume-at 20:00
 
 | Input | Meaning |
 |---|---|
-| *(nothing)* or `auto` | Probe until the limit lifts, then resume |
+| `reset` | You hit a limit: resume at the exact reset time from your local usage data (+ a safety buffer), no probe. The everyday choice. |
+| *(nothing)* or `auto` | Arm and watch: resume whenever a limit hits and then lifts (uses live usage, or a probe when there's no local data) |
 | `20:00` | Next occurrence of 20:00 local time (today, or tomorrow if already past) |
 | `2h30m`, `45m`, `3h` | Relative from now |
 | `2026-07-18T20:00:00+0600` | Exact ISO-8601 timestamp |
@@ -244,11 +251,15 @@ task to `waiting` and the journal keeps the full history.
 ### `claude-auto-resume resume-at [when] [critical|normal|low] [--session …] [--prompt …] [--workspace …]`
 
 Schedules an auto-resume for the current workspace and spawns the daemon.
-With no `when` (or `auto`), the daemon probes until the limit lifts and
-resumes then; with a time, it resumes at that time. Creates the task if the
-workspace wasn't tracked (default tier `critical`); otherwise keeps the
-existing tier unless you pass one. Re-running it reschedules — the running
-daemon picks up the change within one tick.
+`when` = `reset` reads the exact reset time from your local usage data and
+schedules a known-time resume (+ a safety buffer) with no probe and no
+`used_percentage` check — use it when you've just hit a limit (it refuses,
+with guidance, if no local reset time exists). `when` = `auto` (or nothing)
+arms the daemon to watch and resume whenever a limit hits and then lifts. A
+literal time resumes at that time. Creates the task if the workspace wasn't
+tracked (default tier `critical`); otherwise keeps the existing tier unless
+you pass one. Re-running it reschedules — the running daemon picks up the
+change within one tick.
 
 Pins which Claude Code conversation the resume continues: by default the
 workspace's newest session (a previously pinned session is kept on
