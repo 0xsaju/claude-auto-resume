@@ -335,11 +335,15 @@ function composerCard(idPrefix, ws, state, primary) {
       <div class="when-hint dim">the reset time is inferred locally from your activity — no quota used</div>
     </div>
     <div class="c-actions">
-      <label class="imp-lbl dim">Importance</label>
+      <label class="imp-lbl dim">On reset</label>
       <select class="tier">
-        <option value="">keep</option>
-        <option value="critical">critical — auto-resume</option>
-        <option value="normal">normal — 60 s grace</option>
+        ${
+          task
+            ? `<option value="" selected>keep current (${esc(task.importance || 'normal')})</option>`
+            : ''
+        }
+        <option value="critical">critical — resume immediately</option>
+        <option value="normal"${task ? '' : ' selected'}>normal — 60 s grace</option>
         <option value="low">low — notify only</option>
       </select>
       <span class="spacer"></span>
