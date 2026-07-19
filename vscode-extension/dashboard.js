@@ -59,6 +59,9 @@ const ICON_COFFEE = `<svg width="11" height="10" viewBox="0 0 11 10" style="vert
 const STAR = `<svg width="13" height="13" viewBox="0 0 16 16" style="vertical-align:-2px"><path fill="currentColor" d="M8 1.2l1.9 4 4.4.5-3.3 3 .9 4.3L8 10.9 4.1 13l.9-4.3-3.3-3 4.4-.5L8 1.2Z"/></svg>`;
 const CHECK = `<svg class="ck" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M4.2 7.2l2 2 3.6-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const CROSS = `<svg class="ck" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M4.8 4.8l4.4 4.4M9.2 4.8l-4.4 4.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
+// Neutral "pending — not yet, but not broken" glyph (e.g. state.json is
+// simply absent on a brand-new install). Never rendered in alarm colors.
+const DASH = `<svg class="ck" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.6"/><path d="M4.3 7h5.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
 
 let panel; // singleton tab panel
 let sidebarView; // launcher view in the activity-bar sidebar
@@ -203,6 +206,7 @@ function stateSig(state) {
     k: state.stuckWs,
     c: state.cliFound,
     h: state.hooksVia,
+    st: state.stateStatus,
     d: state.daemons,
     w: state.currentWs,
     r: state.ready,
@@ -256,16 +260,30 @@ function sessionTitle(state, ws, id) {
 
 // ------------------------------------------------------------- Screen A ---
 
-function setupRow(ok, title, mono, action) {
-  const status = ok
-    ? `<span class="c-green ck-lab">✓ ${esc(action || 'ready')}</span>`
-    : action
+// Three visual states: ok (green ✓), pending (neutral dash — not yet but
+// not broken), and fail (red ✗, optionally with an action button). A
+// pending row is never shown in alarm colors so a fresh install stays calm.
+function setupRow(ok, title, mono, action, pending, pendingLabel) {
+  let glyphCls, glyph, status;
+  if (ok) {
+    glyphCls = 'c-green';
+    glyph = CHECK;
+    status = `<span class="c-green ck-lab">✓ ${esc(action || 'ready')}</span>`;
+  } else if (pending) {
+    glyphCls = 'dim';
+    glyph = DASH;
+    status = `<span class="dim ck-lab">${esc(pendingLabel || 'pending')}</span>`;
+  } else {
+    glyphCls = 'c-red';
+    glyph = CROSS;
+    status = action
       ? `<button class="btn-pri" data-act="${esc(action)}">${
           action === 'install' ? 'Install' : 'Register'
         }</button>`
       : `<span class="dim ck-lab">checking…</span>`;
+  }
   return `<div class="ck-row">
-    <span class="${ok ? 'c-green' : 'c-red'}">${ok ? CHECK : CROSS}</span>
+    <span class="${glyphCls}">${glyph}</span>
     <span>${esc(title)}</span>
     ${mono ? `<span class="dim mono ck-mono">${esc(mono)}</span>` : ''}
     <span class="spacer"></span>
@@ -277,7 +295,9 @@ function setupScreen(state) {
   const cliOk = state.cliFound;
   const hooksOk = state.hooksVia !== null;
   const claudeOk = state.claudeFound;
-  const stateOk = state.stateHealthy;
+  const stateStatus = state.stateStatus || (state.stateHealthy ? 'ok' : 'absent');
+  const stateOk = stateStatus === 'ok';
+  const statePending = stateStatus === 'absent';
   const ready = cliOk && hooksOk;
   return `<div class="scr scr-setup">
     <div class="brandline">
@@ -309,7 +329,7 @@ function setupScreen(state) {
       ${setupRow(cliOk, 'Terminal CLI installed', 'claude-auto-resume', cliOk ? 'installed' : 'install')}
       ${setupRow(hooksOk, 'Hooks registered', '~/.claude/settings.json', hooksOk ? `via ${state.hooksVia}` : 'register')}
       ${setupRow(claudeOk, 'Claude Code detected', '~/.claude', claudeOk ? 'found' : '')}
-      ${setupRow(stateOk, 'State file healthy', '~/.claude/auto-resume/state.json', stateOk ? 'ok' : '')}
+      ${setupRow(stateOk, 'State file', '~/.claude/auto-resume/state.json', stateOk ? 'healthy' : '', statePending, 'created on first schedule')}
     </div>
 
     ${

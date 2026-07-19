@@ -323,13 +323,22 @@ function collectState() {
   // reliably from a GUI-launched editor (no login PATH), so we treat the
   // ~/.claude store as the honest signal that Claude Code is in use.
   const claudeFound = fs.existsSync(path.join(os.homedir(), '.claude'));
-  let stateHealthy = false;
-  try {
-    JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
-    stateHealthy = true;
-  } catch {
-    stateHealthy = false;
+  // state.json is created on first use (first schedule / hook fire), so on a
+  // brand-new install it is simply ABSENT — which is fine, not broken. Only
+  // a file that exists but won't parse is a real problem. Distinguish the
+  // three so the checklist doesn't greet a new user with a scary red ✗.
+  let stateStatus;
+  if (!fs.existsSync(STATE_FILE)) {
+    stateStatus = 'absent';
+  } else {
+    try {
+      JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+      stateStatus = 'ok';
+    } catch {
+      stateStatus = 'corrupt';
+    }
   }
+  const stateHealthy = stateStatus === 'ok';
   const hooksOk = hooksVia !== null;
   return {
     tasks: readAllTasks(),
@@ -344,6 +353,7 @@ function collectState() {
     extVersion: EXT_VERSION,
     claudeFound,
     stateHealthy,
+    stateStatus,
     ready: cliFoundCache.value && hooksOk,
   };
 }
