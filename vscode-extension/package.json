@@ -10,11 +10,25 @@
     "type": "git",
     "url": "https://github.com/0xsaju/claude-auto-resume"
   },
+  "homepage": "https://github.com/0xsaju/claude-auto-resume#readme",
+  "bugs": {
+    "url": "https://github.com/0xsaju/claude-auto-resume/issues"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
+    "AI",
     "Other"
+  ],
+  "keywords": [
+    "claude",
+    "claude code",
+    "anthropic",
+    "rate limit",
+    "usage limit",
+    "auto resume",
+    "ai"
   ],
   "main": "./extension.js",
   "activationEvents": [

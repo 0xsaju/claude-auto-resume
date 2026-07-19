@@ -1,0 +1,4 @@
+DESIGN-BRIEF.md
+*.vsix
+.vscodeignore
+.gitignore
