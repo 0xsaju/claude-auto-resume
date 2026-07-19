@@ -130,41 +130,25 @@ Full reference with examples: **[User Guide](docs/USER-GUIDE.md)**.
 
 ## How it works
 
-The whole system is one small engine behind `state.json`, fed by data
-Claude Code already produces. Nothing polls a server, nothing guesses:
+One small engine behind `state.json`, fed by data Claude Code already
+produces. Nothing polls a server, nothing guesses — the whole flow, from
+the limit to the resumed conversation:
 
 ```mermaid
-flowchart TB
-    subgraph cc["Claude Code"]
-        session["Your long-running<br/>agentic session"]
-        statusline["status-line stream<br/>used% · resets_at"]
-        store["session store<br/>~/.claude/projects"]
-    end
-
-    subgraph engine["claude-auto-resume  (zero tokens, works while limited)"]
-        cli["CLI · resume-at / status / cancel"]
-        state[("state.json<br/>the one contract")]
-        daemon["daemon<br/>wakes 60s · compares wall-clock"]
-    end
-
-    cockpit["VS Code cockpit"]
-    resume(["claude --resume &lt;session&gt;<br/>the SAME conversation continues"])
-
-    session -- "you hit a limit" --> cli
-    store -- "session id, pinned (F2)" --> cli
-    cli -- "schedule + spawn" --> state
-    cli --> daemon
-    state <--> daemon
-
-    statusline -. "cached on disk" .-> rate["exact reset (F4)"]
-    rate -- "no quota" --> daemon
-    daemon -. "if no rate data" .-> probe["one haiku probe<br/>reads limit message (F1)"]
-    probe --> daemon
-
-    daemon == "at reset + safety grace" ==> resume
-    resume -- "done / still-limited → retry" --> state
-    cockpit <--> state
-    cockpit -- "actions" --> cli
+sequenceDiagram
+    actor You
+    participant CC as Claude Code
+    participant AR as claude-auto-resume
+    participant D as daemon
+    Note over You,CC: your long task is running
+    CC-->>You: 5-hour limit hit — task stops
+    You->>AR: resume-at reset
+    AR->>CC: read the exact reset time, pin your session
+    AR->>D: schedule and spawn (detached)
+    D->>D: wait for the reset (checks the clock)
+    Note over D: window resets — quota is back
+    D->>CC: claude --resume (your conversation)
+    CC-->>You: same conversation continues
 ```
 
 1. **Schedule** — `resume-at` pins the session to continue, records the task
