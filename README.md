@@ -53,7 +53,7 @@ the moment resuming is possible.
 | **True session resume** | The interrupted **conversation itself** continues (`claude --resume <session-id>`) — not a fresh chat. The newest session is pinned automatically; `claude-auto-resume sessions` lists them, `--session` picks another, and the VS Code cockpit shows them as one-click plates. |
 | **Exact reset detection** | Auto mode reads your live reset time from Claude Code's own usage data and schedules the resume for that **exact** moment — no polling, no quota. Works with zero setup when your status line already caches it (or `setup-statusline` to add a tiny sensor); falls back to a single limit-message probe when no local data exists. |
 | **Works when nothing else does** | The CLI costs zero tokens and needs no model turn — it works *while you're rate-limited*, which is precisely when you need it. |
-| **Importance tiers** | `critical` resumes silently, `normal` gives you a 60-second window to object, `low` only notifies. |
+| **Importance tiers** | `critical` resumes silently, `normal` gives you a 5-minute window to object, `low` only notifies. |
 | **Suspend-safe** | The daemon compares wall-clock time on 60-second ticks — a closed lid delays nothing. |
 | **Context-aware resume** | Resumed sessions are pointed at your `PROGRESS.md`, so they continue instead of starting over. |
 | **Safety rails** | Bounded retries, backoff when a resume bounces off a still-active limit, instant cancel (kills in-flight work), no dangerous permission flags unless you opt in. |

@@ -151,7 +151,7 @@ decouples them.
 | Importance | Behavior at reset |
 |---|---|
 | `critical` | Resume automatically, no confirmation |
-| `normal`   | Notify, then auto-proceed after a 60 s window |
+| `normal`   | Notify, then auto-proceed after a 5-minute window (cancellable) |
 | `low`      | Notify only; user resumes manually |
 
 ## Resume context strategy
@@ -194,7 +194,11 @@ never from invented shapes:
 
 Either way a resume only fires after a limit was actually **observed** and
 then lifted (`limit_seen`) — scheduling auto-detect while healthy leaves the
-task armed, never resuming into a live session (D27).
+task armed, never resuming into a live session (D27). The scheduled resume
+time carries a post-reset safety buffer (`AR_RESET_GRACE_SECS`, default 60s):
+attempting on the exact reset instant risks bouncing off a still-active limit
+(clock skew, or the server rounding the window up), which would waste an
+attempt.
 
 ## Window warm-up scheduling (phase 3)
 

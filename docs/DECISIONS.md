@@ -474,3 +474,25 @@ wrote to the wrong path (ignored the override); the text engine mangled an
 ISO `resets_at` with a greedy sed; a bare-string `statusLine` was dropped on
 registration. Cockpit shows the real reset ("resets 6:00 PM · 40% used";
 "armed · resets" vs "resumes" by limit_seen). Plugin 0.5.0, extension 0.8.7.
+
+## D30 — 2026-07-19 — Post-reset safety buffer + longer normal-tier window
+
+Two resume-timing tweaks driven by go-live use:
+
+**Reset safety buffer.** Resuming at the exact reset instant is fragile: a
+call fired a second early — from clock skew, or the server rounding the
+5-hour window up — bounces off a still-active limit and burns an attempt. So
+the daemon now schedules the resume `AR_RESET_GRACE_SECS` (default 60s,
+`AR_CFG_RESET_GRACE`) AFTER the detected/announced reset, on both the F4
+sensor path and the F1 probe-parsed path. `0` opts back into on-the-dot.
+The existing backoff+retry (bounded by `max_resumes`) still covers a bounce
+if one happens anyway.
+
+**Normal-tier window 60s → 300s.** The `normal` tier notifies, waits, then
+resumes so you can cancel. 60s was too short to notice and react; the
+confirmation window (`AR_NORMAL_GRACE_SECS`) now defaults to 5 minutes.
+
+No schema change (resume_at semantics unchanged, still an ISO time). Plugin
+0.5.1. +2 regression tests (grace applied; grace 0 = exact). Cockpit already
+renders whatever `resume_at` holds, so it surfaces the buffered time with no
+change.

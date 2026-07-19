@@ -535,13 +535,20 @@ t_eq "rate: armed (low usage) stays waiting" "waiting" "$(ar_task_get "$WSR1" st
 t_eq "rate: armed keeps limit_seen 0" "0" "$(ar_task_get "$WSR1" limit_seen)"
 t_contains "rate: armed journaled with usage %" "% used" "$(ar_journal_show "$WSR1" 3)"
 
-# limited via sensor (100%): limit_seen=1, schedules the EXACT reset time
+# limited via sensor (100%): limit_seen=1, schedules the reset time plus the
+# post-reset safety grace (default 60s) so we don't attempt on the exact dot.
 WSR2="$DTMP/ws-rate-limited"; mkdir -p "$WSR2"
 (cd "$WSR2" && AR_NO_DAEMON=1 bash "$PLUGIN/scripts/task-resume-at.sh" auto critical >/dev/null)
 mkrate 100
-AR_DAEMON_ONESHOT=1 bash "$PLUGIN/scripts/daemon.sh" "$WSR2"
+AR_RESET_GRACE_SECS=60 AR_DAEMON_ONESHOT=1 bash "$PLUGIN/scripts/daemon.sh" "$WSR2"
 t_eq "rate: limited sets limit_seen" "1" "$(ar_task_get "$WSR2" limit_seen)"
-t_eq "rate: schedules the EXACT reset time" "$(ar_epoch_to_iso "$RFUT")" "$(ar_task_get "$WSR2" resume_at)"
+t_eq "rate: schedules reset + safety grace" "$(ar_epoch_to_iso $(( RFUT + 60 )))" "$(ar_task_get "$WSR2" resume_at)"
+# grace is configurable: 0 = attempt exactly at the reset
+WSR2b="$DTMP/ws-rate-limited-nograce"; mkdir -p "$WSR2b"
+(cd "$WSR2b" && AR_NO_DAEMON=1 bash "$PLUGIN/scripts/task-resume-at.sh" auto critical >/dev/null)
+mkrate 100
+AR_RESET_GRACE_SECS=0 AR_DAEMON_ONESHOT=1 bash "$PLUGIN/scripts/daemon.sh" "$WSR2b"
+t_eq "rate: grace 0 schedules the exact reset" "$(ar_epoch_to_iso "$RFUT")" "$(ar_task_get "$WSR2b" resume_at)"
 
 # seen a limit, then usage fell: resumes via the sensor (no probe)
 WSR3="$DTMP/ws-rate-resume"; mkdir -p "$WSR3"

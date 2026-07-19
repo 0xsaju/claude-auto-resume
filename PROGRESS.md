@@ -92,6 +92,16 @@ session. Detailed rationale for every decision: `docs/DECISIONS.md`
       (session resume itself already works via F2 store discovery)
 - [ ] **Multiple schedules per workspace** (cockpit renders the list
       already): schema v3 (tasks get ids), per-schedule daemon + cancel.
+- [x] **Resume-timing safety + doc refresh — 2026-07-19 (D30).** Resumes now
+      fire `AR_RESET_GRACE_SECS` (default 60s) AFTER the reset, not on the exact
+      instant, so they don't bounce off a still-active limit (clock skew /
+      server rounding); the `normal`-tier confirmation window went 60s → 5 min
+      so it's actually cancellable. Applied on both the F4 sensor and F1 probe
+      paths; +2 regression tests (grace applied; grace 0 = exact). Plugin 0.5.1.
+      Docs brought current with F4/D29 + D30: README (badges, exact-reset story,
+      new commands), USER-GUIDE (exact-reset concept, setup-statusline,
+      rate/limit/grace config), ARCHITECTURE (status-line sensor component,
+      auto-mode detection), and the VS Code extension README + new CHANGELOG.
 - [x] **Killed a time-of-day test flake — 2026-07-19.** The go-live corner
       pass found `run-tests.sh` failing ~1h each afternoon: the auto-parse test
       hardcoded a reset display of `4:10pm`, but the daemon only accepts an

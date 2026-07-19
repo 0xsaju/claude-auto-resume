@@ -13,7 +13,7 @@
 # Safety rails (C5): max_resumes enforced; failed resume attempts back off
 # (AR_BACKOFF_BASE_SECS * attempt) instead of hammering; importance tiers:
 #   critical -> resume with no confirmation
-#   normal   -> notify, then auto-proceed after $AR_NORMAL_GRACE_SECS (60)
+#   normal   -> notify, then auto-proceed after $AR_NORMAL_GRACE_SECS (300)
 #   low      -> notify only, never auto-resume
 #
 # The claude binary is ${CLAUDE_AUTO_RESUME_CLAUDE_BIN:-claude} so tests run
@@ -29,7 +29,12 @@ WS="${1:-}"
 [ -n "$WS" ] || exit 0
 
 TICK="${AR_DAEMON_TICK_SECS:-60}"
-GRACE="${AR_NORMAL_GRACE_SECS:-60}"
+GRACE="${AR_NORMAL_GRACE_SECS:-300}"
+# Safety buffer added AFTER a detected/announced reset before we actually
+# attempt the resume. A resume fired at the exact reset instant (or a second
+# early, from clock skew or the server rounding the window up) bounces off a
+# still-active limit and wastes an attempt; waiting a beat avoids that.
+RESET_GRACE="${AR_RESET_GRACE_SECS:-${AR_CFG_RESET_GRACE:-60}}"
 BACKOFF_BASE="${AR_BACKOFF_BASE_SECS:-300}"
 PROBE_INTERVAL="${AR_PROBE_INTERVAL_SECS:-1800}"
 PROBE_MODEL="${AR_PROBE_MODEL:-${AR_CFG_PROBE_MODEL:-haiku}}"
@@ -188,13 +193,16 @@ while :; do
           ar_task_set "$WS" limit_seen_at "$NOW"
           ar_journal_append "$WS" "limit-hit" "sensor: ${USED}% used — waiting for reset $RESET_ISO"
         fi
-        if [ "$NOW" -lt "$RESETS_AT" ]; then
-          ar_task_set "$WS" resume_at "$RESET_ISO"
-          ar_log "daemon[$$]: sensor limited (${USED}%); exact reset $RESET_ISO"
+        # Attempt the resume a safety beat AFTER the reset, not on the dot.
+        RESET_TARGET=$(( RESETS_AT + RESET_GRACE ))
+        RESET_TGT_ISO="$(ar_epoch_to_iso "$RESET_TARGET")"
+        if [ "$NOW" -lt "$RESET_TARGET" ]; then
+          ar_task_set "$WS" resume_at "$RESET_TGT_ISO"
+          ar_log "daemon[$$]: sensor limited (${USED}%); reset $RESET_ISO, resuming $RESET_TGT_ISO (+${RESET_GRACE}s)"
           [ -n "${AR_DAEMON_ONESHOT:-}" ] && stand_down "oneshot: sensor limited, waiting for reset"
           continue
         fi
-        ar_journal_append "$WS" "limit-lifted" "sensor: reset time reached"
+        ar_journal_append "$WS" "limit-lifted" "sensor: reset time reached (+${RESET_GRACE}s grace)"
         RATE_RESUME=1
       elif [ "$LIMIT_SEEN" = "1" ]; then
         # We saw a limit and usage has since dropped below the threshold —
@@ -239,10 +247,12 @@ while :; do
       NOW="$(date +%s)"
       PARSED="$(ar_parse_reset_time "$PROBE_OUT")" || PARSED=""
       if [ -n "$PARSED" ] && [ "$PARSED" -gt $((NOW + 60)) ] && [ "$PARSED" -lt $((NOW + 82800)) ]; then
-        NEXT_ISO="$(ar_epoch_to_iso "$PARSED")"
+        ANNOUNCED_ISO="$(ar_epoch_to_iso "$PARSED")"
+        # Resume a safety beat after the announced reset, not on the dot.
+        NEXT_ISO="$(ar_epoch_to_iso $((PARSED + RESET_GRACE)) )"
         ar_task_set "$WS" resume_at "$NEXT_ISO"
-        ar_journal_append "$WS" "reset-detected" "limit message announces reset at $NEXT_ISO"
-        ar_log "daemon[$$]: reset time read from limit message: $NEXT_ISO"
+        ar_journal_append "$WS" "reset-detected" "limit message announces reset at $ANNOUNCED_ISO; resuming $NEXT_ISO (+${RESET_GRACE}s)"
+        ar_log "daemon[$$]: reset from limit message $ANNOUNCED_ISO; resuming $NEXT_ISO (+${RESET_GRACE}s)"
       elif [ -n "$PARSED" ]; then
         # Message parsed but the time is now/borderline — retry soon.
         NEXT_ISO="$(ar_epoch_to_iso $((NOW + 300)) )"

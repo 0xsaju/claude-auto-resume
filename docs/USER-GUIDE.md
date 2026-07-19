@@ -98,7 +98,7 @@ directory Claude Code is running in.
 | Tier | At reset time |
 |---|---|
 | `critical` | Resumes immediately, no confirmation. |
-| `normal` | Sends a notification, waits 60 seconds, then resumes — unless you `claude-auto-resume cancel` inside that window. |
+| `normal` | Sends a notification, waits 5 minutes, then resumes — unless you `claude-auto-resume cancel` inside that window. |
 | `low` | Sends a notification only. You resume manually. |
 
 **The daemon.** Scheduling spawns a small background process that survives
@@ -118,6 +118,12 @@ If nothing local has it, run `claude-auto-resume setup-statusline` to
 install a tiny sensor, or point the tool at your own cache with
 `AR_CFG_RATE_SOURCE` (see §6). With no rate data at all, auto mode falls
 back to probing (below).
+
+The resume fires a short **safety buffer after** the reset (default 60s,
+`AR_RESET_GRACE_SECS`), never on the exact instant — a resume attempted a
+second early bounces off a still-active limit and wastes an attempt. (Even
+if it does bounce, the daemon backs off and retries, bounded by
+`max_resumes`.)
 
 **PROGRESS.md.** Keep one in your workspace. The default resume prompt is:
 
@@ -288,7 +294,7 @@ task prompt, and the last journal entries.
 
 Sets the task to `cancelled`, journals it, and immediately stops the
 workspace's daemon **and any resume already in flight** (the claude
-process it launched). Cancelling during a `normal` tier's 60-second grace
+process it launched). Cancelling during a `normal` tier's 5-minute grace
 window aborts that resume.
 
 ### `claude-auto-resume list`
@@ -359,7 +365,8 @@ Optional config file: `~/.claude/auto-resume/config` (plain shell,
 | `AR_CFG_EXTRA_ARGS` | `CLAUDE_AUTO_RESUME_EXTRA_ARGS` | *(empty)* | Extra CLI args appended to the resume command (word-split) |
 | — | `CLAUDE_AUTO_RESUME_STATE` | `~/.claude/auto-resume/state.json` | State file location |
 | — | `AR_DAEMON_TICK_SECS` | `60` | Daemon wake interval |
-| — | `AR_NORMAL_GRACE_SECS` | `60` | `normal` tier confirmation window |
+| — | `AR_NORMAL_GRACE_SECS` | `300` | `normal` tier confirmation window (notify → wait → resume, so you can cancel) |
+| `AR_CFG_RESET_GRACE` | `AR_RESET_GRACE_SECS` | `60` | Safety buffer added *after* a detected reset before attempting the resume (avoids bouncing off a still-active limit at the exact reset instant). `0` = attempt on the dot |
 | — | `AR_BACKOFF_BASE_SECS` | `300` | Backoff unit after a failed attempt |
 | — | `AR_PROBE_INTERVAL_SECS` | `1800` | Auto mode: seconds between limit probes (fallback path only) |
 | `AR_CFG_PROBE_MODEL` | `AR_PROBE_MODEL` | `haiku` | Auto mode: model for the probe call |
