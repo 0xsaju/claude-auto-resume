@@ -200,6 +200,7 @@ function stateSig(state) {
     t: state.tasks,
     s: state.sessionsByWs,
     p: state.projects,
+    k: state.stuckWs,
     c: state.cliFound,
     h: state.hooksVia,
     d: state.daemons,
@@ -390,13 +391,18 @@ function scheduledList(state, ws) {
   if (!task) {
     return `<p class="empty-line dim">Nothing scheduled — the composer above is all you need.</p>`;
   }
-  const hue = STATUS_HUE[task.status] || 'desc';
+  // A "resuming" task whose daemon is gone was interrupted mid-resume — the
+  // extension flags it in state.stuckWs. Surface it clearly instead of a
+  // forever-spinning "resuming" dot.
+  const stuck = (state.stuckWs || []).includes(ws);
+  const hue = stuck ? 'red' : STATUS_HUE[task.status] || 'desc';
   const auto = task.resume_mode === 'auto';
   const title =
     sessionTitle(state, ws, task.session_id) ||
     (task.session_id ? task.session_id.slice(0, 8) : 'new chat');
-  const whenLabel =
-    task.status === 'waiting'
+  const whenLabel = stuck
+    ? 'resume interrupted — reschedule'
+    : task.status === 'waiting'
       ? auto
         ? 'auto-detect'
         : `resumes ${hm12(task.resume_at)}`
@@ -410,12 +416,12 @@ function scheduledList(state, ws) {
       ? `<span class="cd mono countdown" data-deadline="${esc(task.resume_at)}">—</span>`
       : '';
   return `<div class="sched-row">
-    <span class="dot bg-${hue} ${task.status === 'resuming' ? 'pulse' : ''}"></span>
+    <span class="dot bg-${hue} ${task.status === 'resuming' && !stuck ? 'pulse' : ''}"></span>
     <span class="sched-title ellip">${esc(title)} <span class="dim mono">${esc(
       (task.session_id || '').slice(0, 8)
     )}</span></span>
     <span class="spacer"></span>
-    <span class="dim when-lab">${esc(whenLabel)}</span>
+    <span class="${stuck ? 'c-red' : 'dim'} when-lab">${esc(whenLabel)}</span>
     <span class="badge">${promptKind}</span>
     <span class="dim mono att">${task.resume_count ?? 0}/${task.max_resumes ?? 3}</span>
     ${cd}
@@ -451,19 +457,21 @@ function otherSection(state) {
     })
     .map((ws) => {
       const t = state.tasks[ws];
-      const hue = STATUS_HUE[t.status] || 'desc';
-      const when =
-        t.status === 'waiting'
+      const stuck = (state.stuckWs || []).includes(ws);
+      const hue = stuck ? 'red' : STATUS_HUE[t.status] || 'desc';
+      const when = stuck
+        ? 'resume interrupted'
+        : t.status === 'waiting'
           ? t.resume_mode === 'auto'
             ? 'resumes auto-detect'
             : `resumes ${hm12(t.resume_at)}`
           : (STATUS_LABEL[t.status] || t.status).toLowerCase();
       return `<div class="wsrow">
-        <span class="dot bg-${hue} ${t.status === 'resuming' ? 'pulse' : ''}"></span>
+        <span class="dot bg-${hue} ${t.status === 'resuming' && !stuck ? 'pulse' : ''}"></span>
         <span class="ellip">${esc(path.basename(ws))}</span>
         <span class="dim mono ellip ws-path">${esc(ws)}</span>
         <span class="spacer"></span>
-        <span class="dim">${esc(when)}</span>
+        <span class="${stuck ? 'c-red' : 'dim'}">${esc(when)}</span>
         <button class="x-btn act-cancel" data-ws="${esc(ws)}" aria-label="Cancel">✕</button>
       </div>`;
     })

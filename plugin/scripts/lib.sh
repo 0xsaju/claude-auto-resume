@@ -237,6 +237,8 @@ ar__jq_upsert() {
     "limit_seen": "0",
     "limit_seen_at": "",
     "armed_noted": "0",
+    "armed_since": "",
+    "daemon_pid": "",
     "resume_prompt_template": $defprompt,
     "last_output_tail": "",
     "progress_file": "PROGRESS.md",
@@ -275,6 +277,7 @@ DEFAULTS = {
     "resume_count": 0,
     "max_resumes": 3,
     "limit_seen": "0", "limit_seen_at": "", "armed_noted": "0",
+    "armed_since": "", "daemon_pid": "",
     "resume_prompt_template": defprompt,
     "last_output_tail": "", "progress_file": "PROGRESS.md", "journal": [],
 }
@@ -369,6 +372,8 @@ ar__text_insert_task() {
       print "      \"limit_seen\": \"0\","
       print "      \"limit_seen_at\": \"\","
       print "      \"armed_noted\": \"0\","
+      print "      \"armed_since\": \"\","
+      print "      \"daemon_pid\": \"\","
       print "      \"resume_prompt_template\": \"" ENVIRON["AR_DP"] "\","
       print "      \"last_output_tail\": \"\","
       print "      \"progress_file\": \"PROGRESS.md\","

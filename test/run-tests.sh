@@ -457,6 +457,34 @@ printf 'limit' > "$MODEFILE"
 AR_JSON_ENGINE=text AR_DAEMON_ONESHOT=1 bash "$PLUGIN/scripts/daemon.sh" "$WS17"
 t_eq "text-engine: a seen limit is remembered (limit_seen=1)" "1" "$(ar_task_get "$WS17" limit_seen)"
 
+# the daemon records its own pid, so the cockpit can distinguish an
+# in-flight resume (pid alive) from an interrupted one (status stuck at
+# "resuming" but the daemon gone). WS14's daemon ran above.
+PIDVAL="$(ar_task_get "$WS14" daemon_pid)"
+case "$PIDVAL" in
+  ''|*[!0-9]*) fail "daemon: records its numeric pid" "got '$PIDVAL'" ;;
+  *) ok "daemon: records its numeric pid" ;;
+esac
+
+# armed-window bound: an armed auto-detect task that never sees a limit
+# must stand down instead of probing forever and burning quota (C6).
+WS18="$DTMP/ws-armed-expire"; mkdir -p "$WS18"
+printf 'clean' > "$MODEFILE"
+(cd "$WS18" && AR_NO_DAEMON=1 bash "$PLUGIN/scripts/task-resume-at.sh" auto critical >/dev/null)
+ar_task_set "$WS18" armed_since "$(( $(date +%s) - 100 ))"
+AR_ARMED_MAX_SECS=1 AR_DAEMON_ONESHOT=1 bash "$PLUGIN/scripts/daemon.sh" "$WS18"
+t_eq "armed-bound: stands down after the armed window" "failed" "$(ar_task_get "$WS18" status)"
+t_contains "armed-bound: give-up journaled" "stood down" "$(ar_journal_show "$WS18" 5)"
+t_eq "armed-bound: no resume happened" "0" "$(ar_task_get "$WS18" resume_count)"
+
+# armed-window bound: ARMED_MAX=0 opts out — probe indefinitely, never
+# giving up on arming even with an ancient armed_since.
+WS19="$DTMP/ws-armed-nobound"; mkdir -p "$WS19"
+(cd "$WS19" && AR_NO_DAEMON=1 bash "$PLUGIN/scripts/task-resume-at.sh" auto critical >/dev/null)
+ar_task_set "$WS19" armed_since "$(( $(date +%s) - 100000 ))"
+AR_ARMED_MAX_SECS=0 AR_DAEMON_ONESHOT=1 bash "$PLUGIN/scripts/daemon.sh" "$WS19"
+t_eq "armed-bound: ARMED_MAX=0 keeps waiting" "waiting" "$(ar_task_get "$WS19" status)"
+
 # auto mode: gives up when limit never lifts within the window
 WS9="$DTMP/ws-auto-giveup"; mkdir -p "$WS9"
 printf 'limit' > "$MODEFILE"

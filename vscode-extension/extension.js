@@ -84,6 +84,23 @@ function readTask() {
   return ws ? readAllTasks()[ws] : undefined;
 }
 
+// A resume is only genuinely in flight while the daemon that started it is
+// still alive. If status is "resuming" but that daemon is gone (crash, kill,
+// machine reset mid-resume), the task is stuck and needs the user to
+// reschedule or cancel. A missing/blank daemon_pid is treated as NOT stuck —
+// we only flag a pid we can prove is dead, to avoid false alarms.
+function isDaemonStuck(task) {
+  if (!task || task.status !== 'resuming') return false;
+  const pid = parseInt(task.daemon_pid, 10);
+  if (!pid) return false;
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 function refreshAll() {
   refreshStatusBar();
   dashboard.update(host);
@@ -285,6 +302,12 @@ function collectState() {
   } catch {
     /* ignore */
   }
+  // Workspaces whose resume was interrupted (status stuck at "resuming"
+  // with no live daemon) — the dashboard surfaces these for a reschedule.
+  const stuckWs = [];
+  for (const [ws, t] of Object.entries(readAllTasks())) {
+    if (isDaemonStuck(t)) stuckWs.push(ws);
+  }
   const currentWs = workspacePath();
   const projects = listProjects(currentWs);
   const sessionsByWs = {};
@@ -312,6 +335,7 @@ function collectState() {
     tasks: readAllTasks(),
     currentWs,
     projects,
+    stuckWs,
     sessionsByWs,
     cliFound: cliFoundCache.value,
     hooksVia,
@@ -376,6 +400,11 @@ function refreshStatusBar() {
     statusItem.tooltip = statusTooltip(null);
     return;
   }
+  if (isDaemonStuck(task)) {
+    statusItem.text = '$(warning) resume interrupted';
+    statusItem.tooltip = statusTooltip(task);
+    return;
+  }
   const auto = task.resume_mode === 'auto';
   const at = clockAmPm(task.resume_at);
   const map = {
@@ -417,6 +446,20 @@ function statusTooltip(task) {
     failed: 'Failed',
     cancelled: 'Cancelled',
   };
+  if (isDaemonStuck(task)) {
+    md.appendMarkdown(
+      '$(warning) **Resume interrupted** — the daemon exited mid-resume.\n\n'
+    );
+    md.appendMarkdown(
+      'The conversation may or may not have continued. Reschedule to try ' +
+        'again, or cancel to clear it.\n\n'
+    );
+    md.appendMarkdown(
+      '[Reschedule](command:claudeAutoResume.scheduleResume) · ' +
+        '[Cancel](command:claudeAutoResume.cancel)'
+    );
+    return md;
+  }
   md.appendMarkdown(
     `$(circle-filled) **${wordMap[task.status] || task.status}** · ${task.importance}\n\n`
   );

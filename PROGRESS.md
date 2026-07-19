@@ -51,13 +51,25 @@ session. Detailed rationale for every decision: `docs/DECISIONS.md`
       reference, About row (author links from settings). Screen C: status
       item + rich MarkdownString tool-status tooltip. View state persisted
       across auto-refresh.
-- [x] **Test suite: 236 green** — three JSON engines, daemon lifecycle,
+- [x] **Test suite: 243 green** — three JSON engines, daemon lifecycle,
       auto mode (incl. the armed/limit_seen gate), session
       discovery/pinning (incl. bad-value refusal), prompt/workspace flags,
       hooks setup/removal, installer cycle, CLI surface. Cockpit client JS
       additionally exercised out-of-tree via jsdom (21 assertions: AM/PM
       conversion, escaping, chip precedence, message wiring) — kept out of
       the suite to preserve the no-tooling convention.
+- [x] **Armed-window bound + interrupted-resume detection — 2026-07-19
+      (D28).** Two code-review follow-ups to D27. (1) An armed auto-detect
+      task (scheduled while healthy, no limit yet) no longer probes
+      forever: it stands down after `AR_ARMED_MAX_SECS` (default 24h;
+      `0` = unbounded), protecting quota (C6). (2) A resume interrupted by
+      a dead daemon (status stuck at `resuming`) is now detectable — the
+      daemon records `daemon_pid`, and the cockpit flags `resuming` with no
+      live daemon as "resume interrupted" (status bar + tooltip + red
+      dashboard rows with a Reschedule/Cancel prompt). Two additive
+      per-task fields (`armed_since`, `daemon_pid`) across all three JSON
+      engines; +5 regression tests + out-of-tree `isDaemonStuck` checks.
+      Plugin 0.4.0, extension 0.8.5.
 - [x] **Auto-detect false-resume bug — fixed 2026-07-19 (D27).** Scheduling
       auto-detect while NOT rate-limited made the first probe succeed (no
       limit present), which the daemon mistook for "limit lifted" and
@@ -107,7 +119,7 @@ daemon's own probes create session files that would poison any
 "most recent" lookup (D23; this is also why `--continue` is never used).
 Session discovery reads the measured store layout (HOOK-FINDINGS F2)
 read-only; picks flow through `resume-at --session` in both CLI and
-cockpit. 236 tests green. **C6 (real-limit `--resume`) is still UNVERIFIED**
+cockpit. 243 tests green. **C6 (real-limit `--resume`) is still UNVERIFIED**
 — an earlier PROGRESS note claiming it was proven was written by a rogue
 resume: auto-detect had been scheduled on a *non-limited* session, the
 first probe succeeded, and the daemon resumed a healthy session (D27, now

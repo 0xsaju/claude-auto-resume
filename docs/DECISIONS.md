@@ -396,3 +396,43 @@ assertions alone were insufficient — the regression tests assert behavior.
 **Note.** A prior "C6 verified" PROGRESS entry (commit 442c47a) was written
 by the rogue resume this bug caused; it was corrected — C6 remains
 unverified against a real limit.
+
+## D28 — 2026-07-19 — Bound the armed window; detect interrupted resumes
+
+Two follow-ups to the D27 auto-detect work, found by code review.
+
+**1. Armed window is now bounded (C6).** After D27, an auto-detect task
+scheduled on a healthy session stays *armed* — probing (`claude -p ok
+--model haiku`) every `AR_PROBE_INTERVAL_SECS` — until a limit finally
+appears or the user cancels. With no limit ever hit that is an unbounded
+probe loop that slowly burns quota. The daemon now records `armed_since`
+on the first armed pass and stands down (status `failed`, journal + notify
+"armed …s with no limit — stood down; reschedule when you expect one")
+once `AR_ARMED_MAX_SECS` (default 24h) elapses. `AR_ARMED_MAX_SECS=0` opts
+out for anyone who genuinely wants indefinite arming. The give-up is
+measured from arming start, independent of the D27 `limit_seen_at`
+give-up (which times how long a *seen* limit takes to lift).
+
+**2. Interrupted resumes are now detectable (cockpit).** If a daemon dies
+mid-resume (crash, kill, machine reset), the task stays at status
+`resuming` with no live daemon — the cockpit previously showed a forever
+"resuming" spinner. The daemon now writes its pid to `daemon_pid` at
+startup; the extension flags `status == resuming && daemon_pid not alive`
+as an interrupted resume (status bar "resume interrupted", tooltip +
+dashboard rows in red with a Reschedule/Cancel prompt). A genuine in-flight
+resume always has a live daemon, so this never false-flags one; a blank
+`daemon_pid` is treated as NOT stuck, so a resume by a pre-upgrade daemon
+can't trip a false alarm.
+
+**Schema.** Two additive per-task fields, `armed_since` and `daemon_pid`
+(both default `""`), added to all three JSON engines (jq / python3 / text)
+and reset on every schedule. Following the D27 precedent (which added
+`limit_seen` et al. without a bump), the additive daemon-bookkeeping fields
+do NOT bump `state.json` `version` — it stays `2`; `version: 3` remains
+reserved for the multi-schedule-per-workspace change (tasks gain ids).
+
+**Testing.** +5 regression assertions: daemon records a numeric pid; armed
+task stands down after the window (status failed, journaled, no resume);
+`ARMED_MAX=0` keeps waiting. The cockpit `isDaemonStuck` logic is exercised
+out-of-tree over all four cases (non-resuming, alive, dead→stuck, blank→
+not-stuck). Plugin 0.4.0, extension 0.8.5.

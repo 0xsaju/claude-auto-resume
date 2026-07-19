@@ -171,7 +171,7 @@ fi
 # limit_seen/armed_noted are reset every schedule so a re-arm never
 # inherits a stale "already saw a limit" from a previous cycle (which
 # would let auto-detect resume a non-limited session immediately).
-FIELDS=("status=waiting" "resume_at=$RESUME_AT" "resume_mode=$RESUME_MODE" "session_id=$SESSION_ID" "limit_seen=0" "limit_seen_at=" "armed_noted=0")
+FIELDS=("status=waiting" "resume_at=$RESUME_AT" "resume_mode=$RESUME_MODE" "session_id=$SESSION_ID" "limit_seen=0" "limit_seen_at=" "armed_noted=0" "armed_since=" "daemon_pid=")
 if [ -n "$PROMPT_ARG" ]; then
   FIELDS+=("resume_prompt_template=$PROMPT_ARG")
 fi

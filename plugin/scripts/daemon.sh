@@ -34,6 +34,10 @@ BACKOFF_BASE="${AR_BACKOFF_BASE_SECS:-300}"
 PROBE_INTERVAL="${AR_PROBE_INTERVAL_SECS:-1800}"
 PROBE_MODEL="${AR_PROBE_MODEL:-${AR_CFG_PROBE_MODEL:-haiku}}"
 AUTO_GIVEUP="${AR_AUTO_GIVEUP_SECS:-21600}"
+# How long an auto-detect task stays armed (no limit ever observed) before
+# it stands down instead of probing forever and burning quota (C6). 0 = no
+# bound (probe until a limit appears or the user cancels). Default 24h.
+ARMED_MAX="${AR_ARMED_MAX_SECS:-86400}"
 CLAUDE_BIN="${CLAUDE_AUTO_RESUME_CLAUDE_BIN:-${AR_CFG_CLAUDE_BIN:-claude}}"
 EXTRA_ARGS="${CLAUDE_AUTO_RESUME_EXTRA_ARGS:-${AR_CFG_EXTRA_ARGS:-}}"
 
@@ -54,6 +58,11 @@ trap 'rm -f "$PIDFILE"; exit 0' TERM INT
 
 ar_log "daemon[$$]: watching $WS (tick=${TICK}s)"
 AUTO_START="$(date +%s)"
+
+# Record which process is watching this workspace, so the cockpit can tell
+# a genuinely in-flight resume (this pid alive) from an interrupted one
+# (status stuck at "resuming" but the daemon gone). Best-effort.
+ar_task_set "$WS" daemon_pid "$$" 2>/dev/null || true
 
 stand_down() {
   ar_log "daemon[$$]: $1 — standing down"
@@ -190,6 +199,20 @@ while :; do
     # waiting — the current session is fine, so do NOT resume it. Keep
     # watching so a future limit (and its reset) triggers the resume.
     if [ "$LIMIT_SEEN" != "1" ]; then
+      # Bound the armed window so an auto-detect scheduled on a healthy
+      # session can't probe every $PROBE_INTERVAL forever (C6). Measured
+      # from when arming began; ARMED_MAX=0 opts out (probe indefinitely).
+      ARMED_SINCE="$(ar_task_get "$WS" armed_since)"
+      if [ -z "$ARMED_SINCE" ]; then
+        ARMED_SINCE="$NOW"
+        ar_task_set "$WS" armed_since "$NOW"
+      fi
+      if [ "$ARMED_MAX" -gt 0 ] && [ $((NOW - ARMED_SINCE)) -ge "$ARMED_MAX" ]; then
+        ar_task_set "$WS" status failed
+        ar_journal_append "$WS" "failed" "armed ${ARMED_MAX}s with no limit — stood down; reschedule when you expect one"
+        ar_notify "Auto-resume stood down" "No limit hit in $((ARMED_MAX / 3600))h for $WS. Reschedule when you expect to hit one."
+        stand_down "armed window exceeded"
+      fi
       NEXT_ISO="$(ar_epoch_to_iso $((NOW + PROBE_INTERVAL)) )"
       ar_task_set "$WS" resume_at "$NEXT_ISO"
       if [ "$(ar_task_get "$WS" armed_noted)" != "1" ]; then
