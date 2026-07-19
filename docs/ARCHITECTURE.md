@@ -31,6 +31,21 @@ Canonical registration is **directly in `~/.claude/settings.json`** via
 plugin (`plugin/hooks/`) packages the same hooks as an alternative — use
 one or the other, never both.
 
+### Sensor — status-line rate capture (`statusline.sh`)
+
+Claude Code streams live usage — `rate_limits.five_hour.{used_percentage,
+resets_at}` — to the status-line command on stdin (measured; HOOK-FINDINGS
+F4). This optional sensor captures that into `rate.json` so the daemon can
+schedule to the **exact** reset moment with no probe and no quota (D29).
+Opt-in via `setup-statusline`, which **chains** (never clobbers) any
+existing status line. The daemon also reads a pre-existing cache when one
+is present (e.g. `/tmp/claude_rate_cache_$USER.json`), so many setups get
+exact-reset detection with zero setup. Resolution order:
+`CLAUDE_AUTO_RESUME_RATE_FILE` → `AR_CFG_RATE_SOURCE` → our `rate.json` →
+the common `/tmp` cache. With no snapshot at all, auto mode falls back to
+the `haiku` probe path. Note: this reset time is **not** in the Stop hook
+payload (F4, measured) — only the status-line stream carries it.
+
 ### Cockpit — VS Code extension (`vscode-extension/`)
 
 A pure UI shell (MVP, run from source): status bar over the state file,
@@ -159,6 +174,27 @@ clearly-marked stub.
 switch to a supervisor wrapper script that launches and watches the claude
 process. `on-stop.sh` is structured so only its *trigger* changes (hook vs
 supervisor); the daemon and state logic stay identical.
+
+**Auto-mode detection (measured formats only).** A scheduled auto-detect
+task detects and times a reset from local data documented in HOOK-FINDINGS,
+never from invented shapes:
+
+1. **Rate snapshot (F4, preferred).** If a rate snapshot is available
+   (`rate.json` from the sensor, or a pre-existing cache — see the
+   status-line sensor component), the daemon reads `used_percentage` and the
+   exact `resets_at`. `used_percentage >= AR_LIMIT_PCT` (default 100) means
+   limited; it then waits for the exact reset — no probe, no quota. Below the
+   threshold with no limit yet seen, the task stays *armed*, re-reading the
+   snapshot cheaply and standing down after `AR_ARMED_MAX_SECS` (C6).
+2. **Probe fallback (F1).** With no snapshot, the daemon fires one minimal
+   `haiku` probe. A limit is trusted from the measured limit **message**, not
+   the exit code (claude may exit 0 while limited). If the message announces
+   a reset time (`…resets 4:10pm (Asia/Dhaka)`), the daemon waits for exactly
+   that moment; otherwise it polls on `AR_PROBE_INTERVAL_SECS`.
+
+Either way a resume only fires after a limit was actually **observed** and
+then lifted (`limit_seen`) — scheduling auto-detect while healthy leaves the
+task armed, never resuming into a live session (D27).
 
 ## Window warm-up scheduling (phase 3)
 

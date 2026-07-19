@@ -9,8 +9,8 @@ session with context, and never makes you babysit a terminal again.
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)
-![Version](https://img.shields.io/badge/version-0.2.0-informational)
-![Tests](https://img.shields.io/badge/tests-200%20passing-brightgreen)
+![Version](https://img.shields.io/badge/version-0.5.0-informational)
+![Tests](https://img.shields.io/badge/tests-257%20passing-brightgreen)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 
 [Install](#installation) · [Quick start](#quick-start) ·
@@ -51,7 +51,7 @@ the moment resuming is possible.
 | | |
 |---|---|
 | **True session resume** | The interrupted **conversation itself** continues (`claude --resume <session-id>`) — not a fresh chat. The newest session is pinned automatically; `claude-auto-resume sessions` lists them, `--session` picks another, and the VS Code cockpit shows them as one-click plates. |
-| **Automatic reset detection** | `claude-auto-resume resume-at` — one probe reads the reset time straight out of the limit message and schedules the resume for exactly that moment. No time to look up, nothing to type twice. |
+| **Exact reset detection** | Auto mode reads your live reset time from Claude Code's own usage data and schedules the resume for that **exact** moment — no polling, no quota. Works with zero setup when your status line already caches it (or `setup-statusline` to add a tiny sensor); falls back to a single limit-message probe when no local data exists. |
 | **Works when nothing else does** | The CLI costs zero tokens and needs no model turn — it works *while you're rate-limited*, which is precisely when you need it. |
 | **Importance tiers** | `critical` resumes silently, `normal` gives you a 60-second window to object, `low` only notifies. |
 | **Suspend-safe** | The daemon compares wall-clock time on 60-second ticks — a closed lid delays nothing. |
@@ -123,6 +123,7 @@ Tip: `alias car='claude-auto-resume'`.
 | `log [n]` / `watch` | Show / follow the log. |
 | `doctor` | Full environment self-check. |
 | `setup-hooks` / `remove-hooks` | (De)register the detection hooks — the installer already did this. |
+| `setup-statusline` / `remove-statusline` | Opt-in: capture the exact reset time from your status line for exact-reset detection (chains any existing status line). |
 | `update` / `uninstall` / `version` | Tool management. |
 
 Full reference with examples: **[User Guide](docs/USER-GUIDE.md)**.
@@ -147,10 +148,13 @@ stateDiagram-v2
 2. **Wait** — the daemon wakes every 60 seconds, re-reads state (so cancel
    and reschedule always take effect), and compares wall-clock time.
    Each tick is a few local file reads: zero tokens, zero network.
-3. **Detect** — in auto mode it fires one minimal `haiku` probe. Still
-   limited? The limit message itself announces the reset time
-   (`…resets 4:10pm (Asia/Dhaka)` — a format we measured, not guessed);
-   the daemon parses it and waits for exactly that moment.
+3. **Detect** — in auto mode the daemon first looks for your live reset
+   time in Claude Code's own usage data (streamed to the status line — a
+   source we measured, not guessed). Found? It schedules for that exact
+   moment with no probe and no quota. If no local data exists, it fires one
+   minimal `haiku` probe; still limited, the limit message itself announces
+   the reset time (`…resets 4:10pm (Asia/Dhaka)`), which the daemon parses
+   and waits for.
 4. **Resume** — `claude --resume <session> -p "…Check PROGRESS.md first"`
    runs headlessly. Success → `done`. A bounce off a still-active limit →
    back off and retry, at most `max_resumes` times, then report honestly.

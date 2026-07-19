@@ -107,6 +107,18 @@ and acts when the reset time passes. Because it re-reads state each tick,
 cancelling or rescheduling always takes effect within a minute. One daemon
 per workspace; scheduling twice doesn't stack daemons.
 
+**Exact reset detection (no polling).** Claude Code streams your live
+usage — `used_percentage` and the exact `resets_at` — to its status-line
+command. When that data is available locally, auto mode reads it and
+schedules the resume for the **exact** reset moment, with no probe and no
+quota spent. Many setups already cache this (e.g. a status-line script that
+writes `/tmp/claude_rate_cache_$USER.json`), in which case it works with
+**zero setup** — `claude-auto-resume doctor` shows the reset time it found.
+If nothing local has it, run `claude-auto-resume setup-statusline` to
+install a tiny sensor, or point the tool at your own cache with
+`AR_CFG_RATE_SOURCE` (see §6). With no rate data at all, auto mode falls
+back to probing (below).
+
 **PROGRESS.md.** Keep one in your workspace. The default resume prompt is:
 
 > Limit reset. Continue from where you stopped. Check PROGRESS.md first.
@@ -291,7 +303,10 @@ Show the last `n` lines (default 40) of the tool's log, or follow it live.
 
 Environment self-check: install location, claude binary on PATH, JSON
 engine in use, state file health, running/stale daemons, notification
-mechanism. Exits nonzero if resumes can't work (claude missing).
+mechanism, and — when a local rate snapshot is available — the exact reset
+time it found and which source it read (so you can confirm exact-reset
+detection is working before you rely on it). Exits nonzero if resumes can't
+work (claude missing).
 
 ### `claude-auto-resume update`
 
@@ -316,6 +331,19 @@ running setup twice adds nothing. `--force` overrides the
 plugin-conflict check. Requires `python3` (prints the manual snippet
 otherwise).
 
+### `claude-auto-resume setup-statusline` / `claude-auto-resume remove-statusline`
+
+Install or remove the optional status-line **sensor** that captures the
+exact reset time into `~/.claude/auto-resume/rate.json`, so auto mode can
+schedule to the exact moment without probing (see "Exact reset detection"
+in §3). Opt-in because it touches your status line — if you already have
+one, its command is **chained** (run with the same input, output passed
+through) so your display is unchanged, and `remove-statusline` restores it.
+A timestamped backup is written before any change and re-running does
+nothing. Requires `python3`. You don't need this if a local cache already
+carries the reset time (`doctor` will tell you) — it's only for setups that
+have none.
+
 ### `claude-auto-resume version`
 
 Prints the version and git revision.
@@ -333,9 +361,13 @@ Optional config file: `~/.claude/auto-resume/config` (plain shell,
 | — | `AR_DAEMON_TICK_SECS` | `60` | Daemon wake interval |
 | — | `AR_NORMAL_GRACE_SECS` | `60` | `normal` tier confirmation window |
 | — | `AR_BACKOFF_BASE_SECS` | `300` | Backoff unit after a failed attempt |
-| — | `AR_PROBE_INTERVAL_SECS` | `1800` | Auto mode: seconds between limit probes |
+| — | `AR_PROBE_INTERVAL_SECS` | `1800` | Auto mode: seconds between limit probes (fallback path only) |
 | `AR_CFG_PROBE_MODEL` | `AR_PROBE_MODEL` | `haiku` | Auto mode: model for the probe call |
 | — | `AR_AUTO_GIVEUP_SECS` | `21600` | Auto mode: give up after this long still limited (6 h ≈ "must be a weekly cap") |
+| `AR_CFG_RATE_SOURCE` | `CLAUDE_AUTO_RESUME_RATE_FILE` | *(auto)* | Path to the rate snapshot with the exact reset time. Resolution order: this env → this config → our sensor's `rate.json` → `/tmp/claude_rate_cache_$USER.json` |
+| — | `AR_LIMIT_PCT` | `100` | Auto mode: `used_percentage` at which the sensor treats you as limited (conservative default; unverified against a real limit) |
+| — | `AR_RATE_CHECK_SECS` | `300` | Auto mode: how often the daemon re-reads the rate snapshot while armed (no quota) |
+| — | `AR_ARMED_MAX_SECS` | `86400` | Auto mode: stand down after this long armed with no limit seen (`0` = never; protects quota) |
 | — | `AR_NOTIFY_SILENT` | *(unset)* | Set to `1` to suppress desktop notifications |
 
 Example config:
@@ -358,6 +390,7 @@ you.
 | `~/.claude/auto-resume/state.json` | All task state. Human-readable JSON; safe to inspect, edited only via the commands. |
 | `~/.claude/auto-resume/logs/plugin.log` | Timestamped log of everything: hook firings, daemon ticks, resume attempts, errors. First stop when debugging. |
 | `~/.claude/auto-resume/logs/hook-payloads.log` | Raw hook payloads + transcript tails captured at every session stop (feeds limit-detection development). |
+| `~/.claude/auto-resume/rate.json` | Exact reset snapshot (`resets_at`, `used_percentage`) written by the optional status-line sensor; read by auto mode. Absent unless `setup-statusline` is installed (a `/tmp` cache may be used instead — see §3). |
 | `~/.claude/auto-resume/daemons/*.pid` | One pidfile per waiting workspace; auto-removed when the daemon exits. |
 | `~/.claude/auto-resume/config` | Optional configuration (see above). |
 
