@@ -92,6 +92,20 @@ session. Detailed rationale for every decision: `docs/DECISIONS.md`
       (session resume itself already works via F2 store discovery)
 - [ ] **Multiple schedules per workspace** (cockpit renders the list
       already): schema v3 (tasks get ids), per-schedule daemon + cancel.
+- [x] **Killed a time-of-day test flake — 2026-07-19.** The go-live corner
+      pass found `run-tests.sh` failing ~1h each afternoon: the auto-parse test
+      hardcoded a reset display of `4:10pm`, but the daemon only accepts an
+      announced reset in `(now+60s, now+23h)` and the parser rolls a past
+      wall-clock time forward 24h — so once local time passed 4:10pm the target
+      landed at ~tomorrow-4:10pm (>23h) and `reset-detected` never journaled.
+      Root-caused with fake-claude properly wired (`CLAUDE_AUTO_RESUME_CLAUDE_BIN`)
+      — an early repro accidentally hit the real CLI (burned quota; do not omit
+      that override). Fix: compute the reset display ~2h ahead of NOW at run
+      time (portable BSD/GNU `date`, TZ-pinned to the zone named in the
+      message). Also hardened four background-daemon assertions that raced a
+      fixed `sleep` (WS7 limit-observed gate, WS10 journal poll, WS12 in-flight
+      cancel, WS13 daemon-registered gate) with a `wait_until` poll helper.
+      Verified with a 10× suite loop at the exact failing time-of-day. 257 green.
 - [x] **Exact reset time from local data — 2026-07-19 (D29, F4).** Claude
       Code streams `.rate_limits.five_hour.{used_percentage,resets_at}` to
       the status line (measured; NOT in the hook payload). The daemon now
@@ -126,7 +140,10 @@ daemon's own probes create session files that would poison any
 "most recent" lookup (D23; this is also why `--continue` is never used).
 Session discovery reads the measured store layout (HOOK-FINDINGS F2)
 read-only; picks flow through `resume-at --session` in both CLI and
-cockpit. 243 tests green. **C6 (real-limit `--resume`) is still UNVERIFIED**
+cockpit. 257 tests green (and stable across a 10× repeat loop — a
+time-of-day flake in the auto-parse test was found and killed during the
+go-live corner pass; see the dated entry above). **C6 (real-limit
+`--resume`) is still UNVERIFIED**
 — an earlier PROGRESS note claiming it was proven was written by a rogue
 resume: auto-detect had been scheduled on a *non-limited* session, the
 first probe succeeded, and the daemon resumed a healthy session (D27, now

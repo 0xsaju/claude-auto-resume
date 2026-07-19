@@ -25,6 +25,18 @@ t_contains() { # name needle haystack
   esac
 }
 
+# wait_until <timeout_secs> <cmd...> — poll until cmd (run via eval) succeeds or
+# the timeout elapses; returns 0/1. Keeps background-daemon assertions robust on
+# a loaded machine instead of racing a fixed sleep (which flakes under load).
+wait_until() {
+  local t="$1" n=0; shift
+  while [ "$n" -lt "$t" ]; do
+    if eval "$@" >/dev/null 2>&1; then return 0; fi
+    sleep 1; n=$((n + 1))
+  done
+  return 1
+}
+
 # ---------------------------------------------------------- syntax checks --
 
 for f in "$PLUGIN"/scripts/*.sh "$HERE"/fake-claude.sh "$HERE"/run-tests.sh "$HERE"/../bin/claude-auto-resume "$HERE"/../install.sh; do
@@ -381,7 +393,9 @@ export FAKE_CLAUDE_RESET_DISPLAY="soon"
 export AR_PROBE_INTERVAL_SECS=1
 bash "$PLUGIN/scripts/daemon.sh" "$WS7" &
 DPID=$!
-sleep 3
+# Wait until the daemon has actually observed the limit before lifting it, so a
+# loaded machine can't race us to "clean" before the first probe lands.
+wait_until 20 '[ "$(ar_task_get "$WS7" limit_seen)" = 1 ]'
 printf 'clean' > "$MODEFILE"
 WAITED=0
 while kill -0 "$DPID" 2>/dev/null && [ "$WAITED" -lt 15 ]; do sleep 1; WAITED=$((WAITED + 1)); done
@@ -394,14 +408,23 @@ else
   t_eq "auto: probe failures didn't consume attempts" "1" "$(ar_task_get "$WS7" resume_count)"
 fi
 
-# auto mode: announced reset time is read from the limit message (F1)
+# auto mode: announced reset time is read from the limit message (F1).
+# The reset display is computed ~2h ahead of NOW (not a hardcoded wall-clock
+# time): the daemon only accepts an announced reset in (now+60s, now+23h), and
+# a hardcoded past time rolls to ~tomorrow (parser adds 24h) which falls outside
+# that window — so a fixed "4:10pm" made this test fail for the ~1h each day
+# after that time had passed. Formatted in the measured 12-hour form, TZ-pinned
+# so it matches the zone named in the message, portable across BSD/GNU date.
+_r2h=$(( $(date +%s) + 7200 ))
+_rdisp="$(TZ='Asia/Dhaka' date -r "$_r2h" '+%I:%M%p' 2>/dev/null || TZ='Asia/Dhaka' date -d "@$_r2h" '+%I:%M%p' 2>/dev/null)"
+_rdisp="$(printf '%s' "$_rdisp" | tr 'APM' 'apm')"
 WS10="$DTMP/ws-auto-parse"; mkdir -p "$WS10"
 printf 'limit' > "$MODEFILE"
-export FAKE_CLAUDE_RESET_DISPLAY="4:10pm (Asia/Dhaka)"
+export FAKE_CLAUDE_RESET_DISPLAY="$_rdisp (Asia/Dhaka)"
 (cd "$WS10" && AR_NO_DAEMON=1 bash "$PLUGIN/scripts/task-resume-at.sh" auto >/dev/null)
 bash "$PLUGIN/scripts/daemon.sh" "$WS10" &
 DPID=$!
-sleep 3
+wait_until 20 'ar_journal_show "$WS10" 5 | grep -q reset-detected'
 t_contains "auto: reset-detected journaled from message" "reset-detected" "$(ar_journal_show "$WS10" 5)"
 t_eq "auto: waits for the announced time" "waiting" "$(ar_task_get "$WS10" status)"
 kill "$DPID" 2>/dev/null
@@ -568,7 +591,9 @@ WS12="$DTMP/ws-cancel-mid"; mkdir -p "$WS12"
 (cd "$WS12" && AR_NO_DAEMON=1 bash "$PLUGIN/scripts/task-resume-at.sh" now >/dev/null)
 FAKE_CLAUDE_RUN_SECS=3 bash "$PLUGIN/scripts/daemon.sh" "$WS12" &
 DPID=$!
-sleep 1
+# Cancel genuinely mid-flight: wait until the resume has actually started
+# (status=resuming) rather than blindly racing a fixed sleep.
+wait_until 20 '[ "$(ar_task_get "$WS12" status)" = resuming ]'
 ar_task_set "$WS12" status cancelled
 wait "$DPID" 2>/dev/null
 t_eq "daemon: cancel during in-flight resume preserved" "cancelled" "$(ar_task_get "$WS12" status)"
@@ -579,9 +604,11 @@ WS13="$DTMP/ws-cancel-kills"; mkdir -p "$WS13"
 (cd "$WS13" && AR_NO_DAEMON=1 bash "$PLUGIN/scripts/task-resume-at.sh" 45m >/dev/null)
 AR_DAEMON_TICK_SECS=600 bash "$PLUGIN/scripts/daemon.sh" "$WS13" &
 DPID=$!
-sleep 1
+# Wait until the daemon has registered its pid before cancelling, so cancel has
+# a live daemon to kill even on a loaded machine; then give it a moment to exit.
+wait_until 20 '[ -n "$(ar_task_get "$WS13" daemon_pid)" ]'
 (cd "$WS13" && bash "$PLUGIN/scripts/task-cancel.sh" >/dev/null)
-sleep 1
+wait_until 20 '! kill -0 "$DPID" 2>/dev/null'
 if kill -0 "$DPID" 2>/dev/null; then
   kill "$DPID" 2>/dev/null
   fail "cancel: kills waiting daemon immediately" "daemon $DPID survived cancel"
