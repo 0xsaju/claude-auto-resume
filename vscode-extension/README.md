@@ -8,20 +8,27 @@ or parses Claude Code itself.
 
 ## Features
 
+- **Onboarding / setup** — first run opens a setup checklist (terminal CLI
+  installed · detection hooks registered · Claude Code detected · state
+  file healthy) with inline **Install** and **Register** actions; once
+  everything is green it hands off to the dashboard. Reachable later via
+  the header "Setup" link.
 - **Full-page dashboard** — clicking the activity-bar logo opens the
-  dashboard as an editor tab: live countdown to the next resume, health
-  chips, activity timeline, and a schedule composer covering all four
-  decisions — project (any workspace, current preselected), session
-  plates (which conversation to continue), custom resume prompt, and
-  when/tier. One-click cancel with per-workspace cards for everything
-  else being tracked.
-- **Status bar** — live task state for the open workspace
-  (`waiting · 20:00`, `resuming…`, `done`, `failed`, …), refreshed on
-  state-file changes plus a 5-second fallback poll. Click it for the menu.
-- **Menu / commands** — Schedule Resume (quick picks: auto / 30m / 1h /
-  custom…), Show Status, Cancel Task, Open Log.
-- **Onboarding** — if the terminal tool isn't installed, offers to run the
-  one-command installer in an integrated terminal.
+  dashboard as an editor tab: a schedule composer for the current
+  workspace (which conversation to continue, a resume prompt prefilled to
+  the default, an AM/PM time picker plus Auto-detect / 30m / 1h / 2h,
+  importance tier), a list of scheduled resumes with live countdowns, an
+  Other-workspaces picker that opens the same composer for any project,
+  an activity timeline, a collapsible CLI reference, and an About row.
+- **Status bar** — the tool's live state for the open workspace
+  (`waiting · resumes 8:30 PM`, `auto · reset ~1:01 PM`, `resuming…`,
+  `done`, `failed`, …). Hovering shows a rich tool-status card (resume
+  time, pinned session, attempts, Open-dashboard / Cancel). Refreshed on
+  state-file changes plus a 5-second fallback poll.
+- **Menu / commands** — Schedule Resume, Show Status, Cancel Task, Open
+  Log, Register Detection Hooks.
+- **About links** — set `claudeAutoResume.author.github` / `.linkedin` /
+  `.buyMeACoffee` in settings; each link shows only when its URL is set.
 
 ## Requirements
 

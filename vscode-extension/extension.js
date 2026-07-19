@@ -11,6 +11,7 @@ const path = require('path');
 const os = require('os');
 const dashboard = require('./dashboard');
 
+const EXT_VERSION = require('./package.json').version;
 const AR_HOME = path.join(os.homedir(), '.claude', 'auto-resume');
 const STATE_FILE = path.join(AR_HOME, 'state.json');
 const LOG_FILE = path.join(AR_HOME, 'logs', 'plugin.log');
@@ -288,6 +289,25 @@ function collectState() {
   const projects = listProjects(currentWs);
   const sessionsByWs = {};
   for (const ws of projects) sessionsByWs[ws] = listSessions(ws);
+  const cfg = vscode.workspace.getConfiguration('claudeAutoResume');
+  const author = {
+    name: cfg.get('author.name') || '',
+    github: cfg.get('author.github') || '',
+    linkedin: cfg.get('author.linkedin') || '',
+    buyMeACoffee: cfg.get('author.buyMeACoffee') || '',
+  };
+  // Onboarding checklist facts. "Claude Code present" can't be probed
+  // reliably from a GUI-launched editor (no login PATH), so we treat the
+  // ~/.claude store as the honest signal that Claude Code is in use.
+  const claudeFound = fs.existsSync(path.join(os.homedir(), '.claude'));
+  let stateHealthy = false;
+  try {
+    JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+    stateHealthy = true;
+  } catch {
+    stateHealthy = false;
+  }
+  const hooksOk = hooksVia !== null;
   return {
     tasks: readAllTasks(),
     currentWs,
@@ -296,6 +316,11 @@ function collectState() {
     cliFound: cliFoundCache.value,
     hooksVia,
     daemons,
+    author,
+    extVersion: EXT_VERSION,
+    claudeFound,
+    stateHealthy,
+    ready: cliFoundCache.value && hooksOk,
   };
 }
 
@@ -321,6 +346,7 @@ const host = {
   openLog: () => openLog(),
   openConfig: () => openConfig(),
   installCli: () => installCli(),
+  setupHooks: () => setupHooks(),
 };
 
 // --------------------------------------------------------------- status bar --
@@ -330,35 +356,89 @@ function shortTime(iso) {
   return m ? m[1] : '';
 }
 
+// 24h ISO time -> "8:30 PM" for the status bar / tooltip (Screen C).
+function clockAmPm(iso) {
+  const m = /T(\d{2}):(\d{2})/.exec(iso || '');
+  if (!m) return '';
+  let h = parseInt(m[1], 10);
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m[2]} ${suffix}`;
+}
+
+// Status bar item — Screen C. Shows OUR tool's state for the open
+// workspace; clicking it opens the dashboard. The hover tooltip is the
+// rich "tool-status popup" from the design, built as a MarkdownString.
 function refreshStatusBar() {
   const task = readTask();
   if (!task) {
-    statusItem.text = '$(circle-outline) auto-resume';
-    statusItem.tooltip =
-      'claude-auto-resume: no tracked task in this workspace. Click for actions.';
+    statusItem.text = '$(sync) auto-resume';
+    statusItem.tooltip = statusTooltip(null);
     return;
   }
-  const t = shortTime(task.resume_at);
   const auto = task.resume_mode === 'auto';
+  const at = clockAmPm(task.resume_at);
   const map = {
     waiting: [
-      '$(clock)',
-      auto ? `waiting · auto${t ? ` (probe ${t})` : ''}` : `waiting · ${t}`,
+      '$(sync)',
+      auto ? `auto${at ? ` · reset ~${at}` : ''}` : `waiting · resumes ${at}`,
     ],
     resuming: ['$(sync~spin)', 'resuming…'],
     running: ['$(play)', 'tracked'],
     'limit-hit': ['$(warning)', 'limit hit'],
-    done: ['$(check)', 'done'],
-    failed: ['$(error)', 'failed'],
+    done: ['$(check)', `done${at ? ` · ${at}` : ''}`],
+    failed: ['$(error)', `failed · ${task.resume_count ?? 0} attempts used`],
     cancelled: ['$(circle-slash)', 'cancelled'],
   };
   const [icon, label] = map[task.status] || ['$(question)', task.status];
-  statusItem.text = `${icon} AR: ${label}`;
-  statusItem.tooltip =
-    `claude-auto-resume — ${task.status} (${task.importance})` +
-    `${task.resume_at ? `\nresume at: ${task.resume_at}` : ''}` +
-    `\nresumes used: ${task.resume_count ?? 0}/${task.max_resumes ?? 3}` +
-    '\nClick for actions.';
+  statusItem.text = `${icon} ${label}`;
+  statusItem.tooltip = statusTooltip(task);
+}
+
+function statusTooltip(task) {
+  const md = new vscode.MarkdownString();
+  md.isTrusted = true;
+  md.supportThemeIcons = true;
+  md.appendMarkdown('**Claude Auto-Resume**\n\n');
+  if (!task) {
+    md.appendMarkdown('Nothing scheduled in this workspace.\n\n');
+    md.appendMarkdown(
+      'Hit a limit and it shows up here — or schedule one yourself.\n\n'
+    );
+    md.appendMarkdown('[Open dashboard](command:claudeAutoResume.openDashboard)');
+    return md;
+  }
+  const wordMap = {
+    waiting: 'Waiting',
+    resuming: 'Resuming',
+    running: 'Tracked',
+    'limit-hit': 'Limit hit',
+    done: 'Done',
+    failed: 'Failed',
+    cancelled: 'Cancelled',
+  };
+  md.appendMarkdown(
+    `$(circle-filled) **${wordMap[task.status] || task.status}** · ${task.importance}\n\n`
+  );
+  if (task.status === 'waiting' && task.resume_at) {
+    const auto = task.resume_mode === 'auto';
+    md.appendMarkdown(
+      `Resumes at **${clockAmPm(task.resume_at)}**${auto ? ' · auto-detect' : ''}\n\n`
+    );
+  }
+  if (task.session_id) {
+    md.appendMarkdown(`Continues session \`${task.session_id.slice(0, 8)}\`\n\n`);
+  } else if (['waiting', 'resuming'].includes(task.status)) {
+    md.appendMarkdown('$(warning) No session pinned — resume starts a new chat\n\n');
+  }
+  md.appendMarkdown(
+    `Attempt ${task.resume_count ?? 0} / ${task.max_resumes ?? 3}\n\n`
+  );
+  md.appendMarkdown(
+    '[Open dashboard](command:claudeAutoResume.openDashboard) · ' +
+      '[Cancel](command:claudeAutoResume.cancel)'
+  );
+  return md;
 }
 
 function startWatching(context) {
@@ -453,6 +533,17 @@ function installCli() {
   term.sendText(INSTALL_CMD, true);
 }
 
+async function setupHooks() {
+  const res = await runCli(['setup-hooks']);
+  if (res.notFound) return offerInstall();
+  vscode.window.showInformationMessage(
+    res.code === 0
+      ? 'Detection hooks registered in ~/.claude/settings.json.'
+      : `Hook setup failed: ${res.text}`
+  );
+  refreshAll();
+}
+
 async function offerInstall() {
   const choice = await vscode.window.showInformationMessage(
     'The claude-auto-resume terminal tool is not installed.',
@@ -510,7 +601,8 @@ async function activate(context) {
     vscode.commands.registerCommand('claudeAutoResume.refreshView', refreshAll),
     vscode.commands.registerCommand('claudeAutoResume.openLog', openLog),
     vscode.commands.registerCommand('claudeAutoResume.openConfig', openConfig),
-    vscode.commands.registerCommand('claudeAutoResume.installCli', installCli)
+    vscode.commands.registerCommand('claudeAutoResume.installCli', installCli),
+    vscode.commands.registerCommand('claudeAutoResume.setupHooks', setupHooks)
   );
 
   refreshAll();

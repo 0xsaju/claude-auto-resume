@@ -42,6 +42,15 @@ session. Detailed rationale for every decision: `docs/DECISIONS.md`
       workspace, not just the open one), session plates that follow the
       selected project, custom resume prompt, when/tier — CLI flags
       `--prompt` / `--workspace` + one-composer cockpit 0.6.0. (D24)
+- [x] **Cockpit redesign — onboarding + professional dashboard** (0.8.0,
+      D26). Screen A: setup checklist (CLI / hooks / Claude Code / state)
+      with inline Install + Register actions, shown until ready. Screen B:
+      small-header dashboard, current-workspace composer with an AM/PM
+      time picker + prompt prefilled to the default, Scheduled-resumes
+      list, Other-workspaces composer, activity, collapsible CLI
+      reference, About row (author links from settings). Screen C: status
+      item + rich MarkdownString tool-status tooltip. View state persisted
+      across auto-refresh.
 - [x] **Test suite: 226 green** — three JSON engines, daemon lifecycle,
       auto mode, session discovery/pinning, prompt/workspace flags,
       hooks setup/removal, installer cycle, CLI surface.
@@ -57,6 +66,13 @@ session. Detailed rationale for every decision: `docs/DECISIONS.md`
 - [ ] **Real-limit verification of `--resume`:** on the next limit hit,
       schedule with a pinned session and confirm the conversation
       actually continues (C6 milestone burn)
+- [ ] **Multiple schedules per workspace** (cockpit renders the list
+      already): schema v3 (tasks get ids), per-schedule daemon + cancel.
+- [ ] **Quota-free reset inference in the engine:** the 5-hour window is
+      derivable from local transcript timestamps (verified on the F2
+      store) — move it into the daemon so auto-detect sleeps to the
+      inferred reset instead of probing, and populate a concrete time into
+      the cockpit's "When" caption. Document as HOOK-FINDINGS F4.
 - [ ] **Phase 3 — Polish:** stuck detection (PROGRESS.md unchanged across
       two resumes), resume-verification fallback prompt, `/warmup`
       scheduler, reboot-surviving schedules (launchd/cron one-shots)

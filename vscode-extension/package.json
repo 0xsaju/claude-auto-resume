@@ -2,7 +2,7 @@
   "name": "claude-auto-resume-cockpit",
   "displayName": "Claude Auto-Resume Cockpit",
   "description": "Cockpit for claude-auto-resume: auto-resume Claude Code tasks after usage-limit hits. Sidebar dashboard, status bar, one-click controls — the terminal tool does all the work.",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "publisher": "0xsaju",
   "icon": "icon.png",
   "license": "MIT",
@@ -81,6 +81,10 @@
       {
         "command": "claudeAutoResume.installCli",
         "title": "Claude Auto-Resume: Install Terminal Tool"
+      },
+      {
+        "command": "claudeAutoResume.setupHooks",
+        "title": "Claude Auto-Resume: Register Detection Hooks"
       }
     ],
     "menus": {
@@ -119,6 +123,26 @@
           "type": "string",
           "default": "",
           "description": "Path to the claude-auto-resume CLI. Leave empty to auto-detect (PATH, then ~/.local/bin)."
+        },
+        "claudeAutoResume.author.name": {
+          "type": "string",
+          "default": "0xsaju",
+          "description": "Name shown in the dashboard's About row."
+        },
+        "claudeAutoResume.author.github": {
+          "type": "string",
+          "default": "https://github.com/0xsaju/claude-auto-resume",
+          "description": "GitHub URL for the About row. Leave empty to hide."
+        },
+        "claudeAutoResume.author.linkedin": {
+          "type": "string",
+          "default": "",
+          "description": "LinkedIn URL for the About row. Leave empty to hide."
+        },
+        "claudeAutoResume.author.buyMeACoffee": {
+          "type": "string",
+          "default": "",
+          "description": "Buy Me a Coffee URL for the About row. Leave empty to hide."
         }
       }
     }

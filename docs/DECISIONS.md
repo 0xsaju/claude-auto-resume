@@ -310,3 +310,54 @@ widths. Notable mock→real adaptations: hardcoded `--ch-*` colors became
 became the live 1s countdown; attempts became real max_resumes segments;
 the session/prompt selects bind to the measured session store (F2) and
 `resume-at --session/--prompt`. Extension 0.7.0.
+
+## D26 — 2026-07-19 — Cockpit redesign: onboarding gate + professional dashboard (Auto-Resume.dc.html)
+
+The user rejected the 0.7.x dashboard as "childish" and specced a fuller
+product: a welcome/onboarding + setup screen first, then the dashboard,
+then a status-bar tool-status popup — reference bar Linear/Vercel/GitHub
+settings. Iterated in Claude design (same project, new file
+`Auto-Resume.dc.html`) and implemented as extension **0.8.0**. Three
+surfaces:
+
+- **Screen A (onboarding/setup)** — a 3-step "what it does" strip and a
+  live setup checklist (CLI installed · hooks registered · Claude Code
+  detected · state file healthy), each row with ✓ / ✗ + an inline action
+  (Install runs the one-command installer; Register runs
+  `claude-auto-resume setup-hooks`). Shown automatically until the tool
+  is ready (`cliFound && hooks registered`); reachable afterward via a
+  "Setup" link. Replaces the old bare "CLI not installed" card.
+- **Screen B (dashboard)** — small header (never a giant centered logo —
+  the explicit anti-goal), a fixed-project current-workspace composer
+  (no in-card project select; the project is the open folder), a
+  Scheduled-resumes list, an Other-workspaces project picker that reveals
+  the *same* composer for any project, activity timeline, a collapsible
+  CLI reference, and an About row (author name + GitHub/LinkedIn/Buy Me a
+  Coffee, each rendered only when its URL is configured).
+- **Screen C (status bar + tooltip)** — the status item now speaks the
+  tool's state (`waiting · resumes 8:30 PM`, `auto · reset ~1:01 PM`,
+  `resuming…`, `done · HH:MM`, `failed · N attempts used`); its hover is
+  a rich MarkdownString "tool-status popup" (status, resume time,
+  pinned session, attempts, Open-dashboard/Cancel command links). The
+  Orca account-usage popup was style reference only — we show OUR status,
+  not Claude account quotas.
+
+Mechanics: the composer's **When** control is chips (Auto-detect / 30m /
+1h / 2h) plus an **AM/PM** time picker (hour · min · AM|PM segmented),
+converted to 24h `HH:MM` client-side for `resume-at`; the prompt field is
+prefilled with the default *value* (not placeholder) with a "reset to
+default" affordance, and is omitted from the CLI call when unchanged. View
+state (setup vs dashboard, selected other-project, CLI-reference open) is
+persisted host-side so the 5 s auto-refresh doesn't reset it. Author
+links are four VS Code settings (`claudeAutoResume.author.*`); nothing
+fake ships — a link renders only when its URL is set.
+
+Deferred (needs engine work, not shipped in 0.8.0): (a) **multiple
+schedules per workspace** — the list is rendered list-shaped but
+state.json is still one task per workspace (schema v3 + per-schedule
+daemon/cancel is the next slice); (b) the **inferred reset time** shown
+in the When caption — the 5-hour window is derivable from local
+transcript timestamps with zero quota (verified locally on the F2 store),
+but the inference belongs in the bash engine (D21/C1), so the caption is
+generic until the engine populates a concrete time. Documented for a
+future HOOK-FINDINGS F4.
