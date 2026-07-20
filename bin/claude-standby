@@ -187,19 +187,21 @@ EOF
     exec env CAR_INSTALL_DIR="$ROOT" bash "$ROOT/install.sh" --update ;;
 
   uninstall)
-    # A dirty git tree in an unmanaged location looks like a development
-    # checkout — refuse. The installer-managed dir is always removable
-    # (filemode/CRLF quirks can dirty an installed clone through no fault
-    # of the user's).
-    DIRTY="$(git -C "$ROOT" status --porcelain 2>/dev/null || true)"
+    # A git checkout OUTSIDE the managed dir is a development copy — refuse
+    # (same signal `update` uses). Presence of .git is the test, not
+    # dirtiness: a *clean* dev checkout must be protected too. The managed
+    # install is a plain tree (D36) so this never blocks a real uninstall,
+    # and a legacy git-based managed install still uninstalls because
+    # ROOT == MANAGED_DIR.
     MANAGED_DIR="${CAR_INSTALL_DIR:-$HOME/.claude-standby}"
-    if [ -n "$DIRTY" ] && [ "$ROOT" != "$MANAGED_DIR" ]; then
-      echo "Refusing: $ROOT has uncommitted changes — this looks like a development checkout."
+    if [ -d "$ROOT/.git" ] && [ "$ROOT" != "$MANAGED_DIR" ]; then
+      echo "Refusing: $ROOT is a git checkout — this looks like a development checkout."
       echo "If it really is an installed copy, remove it with:"
       echo "  curl -fsSL $INSTALL_URL | bash -s -- --uninstall"
       exit 1
     fi
-    [ -n "$DIRTY" ] && echo "note: $ROOT has local changes — they will be removed with it."
+    [ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ] \
+      && echo "note: $ROOT has local changes — they will be removed with it."
     if [ "${1:-}" != "--yes" ]; then
       printf 'Remove %s and its CLI link? [y/N] ' "$ROOT"
       if ! read -r ANS </dev/tty 2>/dev/null; then

@@ -61,7 +61,7 @@ or parses Claude Code itself.
 1. Open this folder (`vscode-extension/`) in VS Code.
 2. Press **F5** (Run Extension) — an Extension Development Host window
    opens with the cockpit active.
-3. Open any workspace folder in that window; the `auto-resume` status bar
+3. Open any workspace folder in that window; the `Standby` status bar
    item appears bottom-left.
 
 To package a `.vsix`: `npx @vscode/vsce package`.

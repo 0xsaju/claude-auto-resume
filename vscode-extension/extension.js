@@ -420,7 +420,7 @@ function clockAmPm(iso) {
 function refreshStatusBar() {
   const task = readTask();
   if (!task) {
-    statusItem.text = '$(sync) auto-resume';
+    statusItem.text = '$(sync) Standby';
     statusItem.tooltip = statusTooltip(null);
     return;
   }

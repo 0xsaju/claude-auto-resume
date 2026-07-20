@@ -685,3 +685,41 @@ republish the extension under the new marketplace id (ids can't be renamed
 in place; existing installs won't auto-migrate). Until those happen, the
 production `curl` URL and the marketplace badges point at names that don't
 exist yet. `VERSION` bump + release tag recommended alongside (still 0.6.0).
+
+## D38 — 2026-07-20 — Pre-publish audit fixes (parallel multi-agent review)
+
+Before publishing the renamed extension, a four-way parallel audit (rename
+consistency, shell engine + installer, extension publish-readiness, docs vs
+behavior) ran over the repo. Rename and extension came back clean; the other
+two surfaced real fixes:
+
+**Uninstall guard used the wrong signal (medium).** The D35 guard refused
+uninstall only when `git status` was *dirty*, so a **clean, committed**
+development checkout outside the managed dir fell through to `rm -rf $ROOT`.
+Fixed to match `update`: refuse when `[ -d "$ROOT/.git" ] && ROOT !=
+MANAGED_DIR` — presence of a git dir is the dev-copy signal, not dirtiness.
+The managed install is a plain tree (D36) so real uninstalls are unaffected;
+legacy git-based managed installs still uninstall (ROOT == MANAGED_DIR).
+
+**Installer swap could enshrine a truncated download (medium).** `curl | tar`
+in `fetch_tree` had no `pipefail`, so a curl that died mid-stream but fed tar
+a partial-yet-parseable tarball returned 0, and the staging sanity check only
+tested `lib.sh` + `VERSION` — an incomplete tree (missing `daemon.sh` etc.)
+passed and replaced a working install. Fixed: `set -o pipefail` around the
+pipe, and the sanity check now asserts every key file (`bin/claude-standby`,
+`VERSION`, `lib.sh`, `daemon.sh`, `statusline.sh`) is present and non-empty.
+
+**Docs: planned features stated as current (low/medium).** Living docs
+(README feature table, ARCHITECTURE) still said the default resume prompt
+points at `PROGRESS.md` (untrue since 0.8.9) and described stuck detection /
+resume verification / `/warmup` in present tense though they're unbuilt (and
+`/warmup` as a slash command conflicts with C3). Reworded to match the code
+and to mark unbuilt items as planned; the alpha "tested end-to-end" line now
+says "against the test harness" to avoid implying real-limit proof (C6 still
+UNVERIFIED). **Kept, verified acceptable:** state.json read-modify-write is
+unlocked (last-writer-wins lost-update, not corruption; each write is atomic)
+— a known scope limitation, not fixed here.
+
+**Cosmetic:** status-bar idle label `auto-resume` → `Standby`; removed a
+stale old-named `.vsix` build artifact. +5 regression tests (clean-dev-checkout
+refusal, incomplete-download rejection); 259 green.

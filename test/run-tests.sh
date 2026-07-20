@@ -881,6 +881,19 @@ if command -v git >/dev/null 2>&1 && [ -d "$ROOT/.git" ]; then
   t_eq "installer: bad download fails the update" "1" "$URC"
   [ -x "$ITMP/app/bin/claude-standby" ] && ok "installer: bad download leaves install untouched" \
     || fail "installer: bad download leaves install untouched"
+  # a VALID tarball that is missing a key engine file (truncated/partial) must
+  # be rejected by the staging sanity check, not swapped in
+  INCTMP="$(mktemp -d "${TMPDIR:-/tmp}/ar-inc-XXXXXX")"
+  mkdir "$INCTMP/pkg"
+  tar -xzf "$TARBALL" -C "$INCTMP/pkg" --strip-components 1
+  rm -f "$INCTMP/pkg/plugin/scripts/daemon.sh"
+  ( cd "$INCTMP" && tar -czf "$ITMP/incomplete.tgz" pkg )
+  OUT="$(CAR_TARBALL_URL="$ITMP/incomplete.tgz" CAR_INSTALL_DIR="$ITMP/app" bash "$ROOT/install.sh" --update 2>&1)"; URC=$?
+  t_eq "installer: incomplete download fails the update" "1" "$URC"
+  t_contains "installer: incomplete download names the missing file" "incomplete" "$OUT"
+  [ -s "$ITMP/app/plugin/scripts/daemon.sh" ] && ok "installer: incomplete download leaves install intact" \
+    || fail "installer: incomplete download leaves install intact"
+  rm -rf "$INCTMP"
   # the tarball has HEAD; test the working-tree CLI + scripts + installer
   # against the installed layout
   cp "$ROOT/bin/claude-standby" "$ITMP/app/bin/claude-standby"
@@ -904,9 +917,18 @@ if command -v git >/dev/null 2>&1 && [ -d "$ROOT/.git" ]; then
   t_eq "cli: update refuses a dev checkout" "1" "$URC"
   t_contains "cli: update points a dev checkout at git" "development checkout" "$OUT"
   OUT="$("$ITMP/bin/claude-standby" uninstall --yes 2>&1)"; URC=$?
-  t_eq "cli: uninstall refuses dirty dev checkout" "1" "$URC"
+  t_eq "cli: uninstall refuses a dirty dev checkout" "1" "$URC"
   t_contains "cli: uninstall names the guard" "development checkout" "$OUT"
-  # same dirty tree as the installer-managed dir → proceeds, with a note
+  # regression: a CLEAN, committed dev checkout must ALSO be refused — the
+  # old dirty-only guard silently rm -rf'd it
+  git -C "$ITMP/app" add -A 2>/dev/null
+  git -C "$ITMP/app" -c user.email=t@t -c user.name=t commit -qam clean 2>/dev/null
+  OUT="$("$ITMP/bin/claude-standby" uninstall --yes 2>&1)"; URC=$?
+  t_eq "cli: uninstall refuses a CLEAN dev checkout" "1" "$URC"
+  [ -e "$ITMP/app/bin/claude-standby" ] && ok "cli: clean dev checkout survives uninstall" \
+    || fail "cli: clean dev checkout survives uninstall"
+  # re-dirty, then uninstall AS the installer-managed dir → proceeds, w/ note
+  echo junk2 > "$ITMP/app/JUNK2"
   OUT="$(CAR_INSTALL_DIR="$ITMP/app" CLAUDE_PLUGINS_DIR="$ITMP/noplugins" CLAUDE_SETTINGS_FILE="$ITMP/nosettings.json" \
     "$ITMP/bin/claude-standby" uninstall --yes 2>&1)"
   t_contains "cli: managed uninstall notes local changes" "local changes" "$OUT"

@@ -60,7 +60,9 @@ fetch_tree() {
     return 0
   fi
   if command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
-    curl -fsSL "$TARBALL_URL" | tar -xz -C "$DEST" --strip-components 1
+    # pipefail so a truncated curl (dies mid-stream, feeds tar a partial but
+    # parseable tarball) is caught here instead of passing as tar's exit 0.
+    ( set -o pipefail; curl -fsSL "$TARBALL_URL" | tar -xz -C "$DEST" --strip-components 1 )
     return $?
   fi
   if command -v git >/dev/null 2>&1; then
@@ -80,7 +82,16 @@ install_tree() {
     rm -rf "$STAGE"
     die "download failed — check your network, or grab it from https://github.com/0xsaju/claude-standby"
   fi
-  if ! bash -n "$STAGE/plugin/scripts/lib.sh" 2>/dev/null || [ ! -s "$STAGE/VERSION" ]; then
+  # Assert the key files exist and are non-empty, so a truncated-but-parseable
+  # download can't replace a working install with an incomplete tree.
+  for req in bin/claude-standby VERSION plugin/scripts/lib.sh \
+             plugin/scripts/daemon.sh plugin/scripts/statusline.sh; do
+    if [ ! -s "$STAGE/$req" ]; then
+      rm -rf "$STAGE"
+      die "downloaded copy is incomplete ($req missing) — install left untouched"
+    fi
+  done
+  if ! bash -n "$STAGE/plugin/scripts/lib.sh" 2>/dev/null; then
     rm -rf "$STAGE"
     die "downloaded copy failed a sanity check — install left untouched"
   fi

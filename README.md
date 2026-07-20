@@ -10,7 +10,7 @@ session with context, and never makes you babysit a terminal again.
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)
 ![Version](https://img.shields.io/badge/version-0.9.0-informational)
-![Tests](https://img.shields.io/badge/tests-254%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-259%20passing-brightgreen)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 [![VS Marketplace](https://img.shields.io/badge/VS_Marketplace-Install-0066b8?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=0xsaju.claude-standby-cockpit)
 [![Open VSX](https://img.shields.io/badge/Open_VSX-Install-a60ee5)](https://open-vsx.org/extension/0xsaju/claude-standby-cockpit)
@@ -87,7 +87,7 @@ the daemon + UI + safety rails.
 | **Works when nothing else does** | The CLI costs zero tokens and needs no model turn — it works *while you're rate-limited*, which is precisely when you need it. |
 | **Importance tiers** | `critical` resumes silently, `normal` gives you a 5-minute window to object, `low` only notifies. |
 | **Suspend-safe** | The daemon compares wall-clock time on 60-second ticks — a closed lid delays nothing. |
-| **Context-aware resume** | Resumed sessions are pointed at your `PROGRESS.md`, so they continue instead of starting over. |
+| **Context-aware resume** | The resumed conversation already carries its full context (`claude --resume`), so it continues instead of starting over — no re-priming needed. Point a custom `--prompt` at a progress/handoff file for even more reliable pickups. |
 | **Safety rails** | Bounded retries, backoff when a resume bounces off a still-active limit, instant cancel (kills in-flight work), no dangerous permission flags unless you opt in. |
 | **Honest by design** | Detection is built from *measured* behavior, never guessed message formats. Weekly caps can't be beaten, and the docs say so. |
 
@@ -235,7 +235,9 @@ caps we can't beat, the docs say so plainly.
 
 ## Project status
 
-**Alpha** — the resume flow is complete and tested end-to-end.
+**Alpha** — the resume flow is complete and tested end-to-end against the
+test harness (`test/fake-claude.sh`). Resuming through a *real* usage limit
+is still unverified — see Contributing if you can help confirm it.
 
 | Capability | Status |
 |---|---|

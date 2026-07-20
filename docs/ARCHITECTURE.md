@@ -99,8 +99,8 @@ Field notes:
   Absent field ⇒ `at` (v1 files stay readable).
 - **resume_count / max_resumes** — safety rail C5; the daemon refuses to
   resume past the cap.
-- **last_output_tail** — final transcript lines at stop time, used for
-  resume-verification (fallback prompt) and for the UI.
+- **last_output_tail** — final transcript lines at stop time, surfaced in
+  the UI (and reserved for the planned resume-verification fallback prompt).
 - **journal** — append-only event history; the UI's timeline source.
 
 ## Two entry points into the wait-and-resume cycle
@@ -136,8 +136,8 @@ decouples them.
 4. Daemon resumes: `claude --resume <session_id> -p "<resume prompt>"` in
    headless mode with pre-approved permissions.
 5. The resume finishes: task done, or another limit → schedule the next
-   resume. Bounded by `max_resumes` and stuck detection (two consecutive
-   resumes with no PROGRESS.md change → stop and notify).
+   resume. Bounded by `max_resumes`. (Stuck detection — stop after two
+   consecutive resumes with no progress — is planned, not yet implemented.)
 
 ## Importance tiers
 
@@ -149,9 +149,12 @@ decouples them.
 
 ## Resume context strategy
 
-Tasks maintain a `PROGRESS.md`. Resume prompts reference it, with a
-two-stage fallback: if the resumed session seems confused, re-send the task
-summary + PROGRESS.md contents.
+The resumed session continues the original conversation (`claude --resume`),
+so it already has its full context; the default resume prompt is just
+"Limit reset. Continue from where you stopped." A custom `--prompt` can
+point at a progress/handoff file for extra reliability. (Planned: a
+two-stage fallback that re-sends the task summary if a resumed session
+seems confused — not yet implemented.)
 
 ## Detection: the C1 rule
 
@@ -192,9 +195,10 @@ attempt.
 
 ## Window warm-up scheduling (phase 3)
 
-An OS-level scheduled job (cron / launchd / Task Scheduler, managed by
-`/warmup`) fires a minimal prompt (`claude -p "hi" --model haiku`) at a
-user-chosen time so the 5-hour usage window starts earlier. This helps the
+An OS-level scheduled job (cron / launchd / Task Scheduler, managed by a
+`warmup` CLI subcommand — not a slash command, per C3) fires a minimal
+prompt (`claude -p "hi" --model haiku`) at a user-chosen time so the 5-hour
+usage window starts earlier. This helps the
 rolling window only, **not** weekly caps — UI and docs must say so honestly.
 
 ## Later phases

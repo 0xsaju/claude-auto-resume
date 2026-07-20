@@ -262,3 +262,13 @@ uninstall smoke-tested. **Owner still needs to:** rename the GitHub repo to
 claude-standby, republish the extension under the new marketplace id, and
 (recommended) bump VERSION + cut a release tag. Until the repo rename, the
 curl install URL and marketplace badges 404.
+
+**2026-07-20 — pre-publish audit (D38).** Four-agent parallel review before
+extension publish. Fixed two real bugs: uninstall now refuses a *clean* dev
+checkout (not just dirty), and the installer rejects a truncated-but-parseable
+download instead of swapping it in (pipefail + full-file sanity check).
+Corrected living docs that described planned features (PROGRESS.md-anchored
+prompt, stuck detection, resume verification, /warmup) as current. Cosmetic
+rebrand of the status-bar idle label; removed a stale old-named vsix. 259
+tests green. Repo About (description/homepage/topics) set on GitHub. Ready
+for extension republish.
