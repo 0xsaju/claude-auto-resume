@@ -4,6 +4,14 @@ All notable changes to the Claude Auto-Resume Cockpit extension. The
 extension is a thin UI over the `claude-auto-resume` terminal tool, so some
 entries describe tool behavior the cockpit now surfaces.
 
+## 0.8.9
+
+- **Simpler default resume prompt.** Now "Limit reset. Continue from where
+  you stopped." — the PROGRESS.md mention was our own project convention,
+  not something most workspaces have; resumed sessions already carry their
+  full conversation context via `--resume`. (Matches the CLI default.)
+- Marketplace listing now shows dashboard screenshots.
+
 ## 0.8.8
 
 - **"At reset" scheduling in the composer.** When your reset time is known

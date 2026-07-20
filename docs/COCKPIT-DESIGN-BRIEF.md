@@ -73,8 +73,8 @@ Top→bottom:
        `<session title> — <id8> · <relative age>`; first entry is the
        newest; a "New chat" entry exists but is last and marked.
      - **Resume prompt** — text input whose VALUE is prefilled with the
-       default ("Limit reset. Continue from where you stopped. Check
-       PROGRESS.md first.") so the user edits it in place; small
+       default ("Limit reset. Continue from where you stopped.") so the
+       user edits it in place; small
        "reset to default" affordance when edited.
      - **When** — one row: chips `Auto-detect reset` (default, selected) ·
        `30m` · `1h` · `2h`, then a simple time input with **AM/PM format**

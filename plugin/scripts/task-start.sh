@@ -39,5 +39,5 @@ echo "  workspace  : $WS"
 echo "  importance : $IMPORTANCE"
 echo "  status     : running"
 echo "  state file : $AR_STATE_FILE"
-echo "Keep PROGRESS.md updated — it is the resume context."
+echo "Tip: a progress/handoff file in the workspace makes resumes sturdier (point --prompt at it)."
 exit 0

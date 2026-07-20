@@ -19,7 +19,7 @@ npx @vscode/vsce package --no-dependencies -o claude-auto-resume-cockpit-<versio
 ```
 
 The `.vsix` is gitignored (build artifact). `.vscodeignore` keeps dev files
-(DESIGN-BRIEF.md, other vsix) out of the package.
+(other vsix files; the design brief now lives in docs/COCKPIT-DESIGN-BRIEF.md) out of the package.
 
 ## A. Microsoft Marketplace (VS Code)
 

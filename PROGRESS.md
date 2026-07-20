@@ -81,6 +81,17 @@ session. Detailed rationale for every decision: `docs/DECISIONS.md`
       lifted. With no limit ever seen, the task stays `armed`. 7 regression
       tests + a live check against the installed daemon.
 
+- [x] **Default resume prompt simplified — 2026-07-20.** Now just "Limit
+      reset. Continue from where you stopped." The "Check PROGRESS.md
+      first." tail was our own repo convention leaking into every user's
+      workspace (surfaced while reviewing the cockpit before the
+      company-wide beta); `--resume` already restores full conversation
+      context, so the file pointer added noise for projects without one.
+      Changed in lib.sh, task-resume-at.sh help, cockpit
+      (dashboard.js/extension.js, ext 0.8.9 + changelog), docs
+      (USER-GUIDE, ARCHITECTURE, DESIGN-BRIEF); `task-start.sh` now gives
+      a soft tip instead of decreeing PROGRESS.md. 237 tests green.
+
 ## Next
 
 - [x] **Go-live audit (5 parallel reviewers) — 2026-07-19 (D34).** Fixed the one

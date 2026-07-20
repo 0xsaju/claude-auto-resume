@@ -116,12 +116,13 @@ second early bounces off a still-active limit and wastes an attempt. (Even
 if it does bounce, the daemon backs off and retries, bounded by
 `max_resumes`.)
 
-**PROGRESS.md.** Keep one in your workspace. The default resume prompt is:
+**Resume prompt.** The default resume prompt is:
 
-> Limit reset. Continue from where you stopped. Check PROGRESS.md first.
+> Limit reset. Continue from where you stopped.
 
-The better your PROGRESS.md, the better the resumed session performs. Ask
-your tracked sessions to update it before they end.
+The resumed session continues your conversation (`--resume`), so it already
+has its context. If your project keeps a progress/handoff file, a custom
+`--prompt` pointing at it makes resumes even more reliable.
 
 **Safety rails.** A task is resumed at most `max_resumes` times (default 3).
 If a resume attempt fails — most commonly because the limit hadn't actually
@@ -182,9 +183,8 @@ claude-auto-resume resume-at auto --session 2 \
 ```
 
 `--prompt` replaces the default resume message ("Limit reset. Continue
-from where you stopped. Check PROGRESS.md first.") for this task from now
-on; `--workspace` schedules for another project directory without cd-ing
-there.
+from where you stopped.") for this task from now on; `--workspace`
+schedules for another project directory without cd-ing there.
 
 You can close the terminal. The daemon makes one minimal, near-free `haiku`
 probe call; while limited, that call returns the limit message — whose

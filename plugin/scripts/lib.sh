@@ -32,7 +32,7 @@ fi
 # Task fields stored as JSON numbers, not strings.
 AR_NUMERIC_FIELDS=" resume_count max_resumes "
 
-AR_DEFAULT_RESUME_PROMPT="Limit reset. Continue from where you stopped. Check PROGRESS.md first."
+AR_DEFAULT_RESUME_PROMPT="Limit reset. Continue from where you stopped."
 
 # Substring that identifies a limit message. MEASURED — cite:
 # docs/HOOK-FINDINGS.md F1 ("You've hit your session limit · resets ...").

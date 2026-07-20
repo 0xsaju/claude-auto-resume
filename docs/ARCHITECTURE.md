@@ -67,7 +67,7 @@ Schema changes require a `version` bump and an entry in `docs/DECISIONS.md`.
       "resume_mode": "at | auto",
       "resume_count": 0,
       "max_resumes": 3,
-      "resume_prompt_template": "Limit reset. Continue from where you stopped. Check PROGRESS.md first.",
+      "resume_prompt_template": "Limit reset. Continue from where you stopped.",
       "last_output_tail": "",
       "progress_file": "PROGRESS.md",
       "limit_seen": "0 | 1 — a limit was actually observed (gates auto-mode resume, D27)",

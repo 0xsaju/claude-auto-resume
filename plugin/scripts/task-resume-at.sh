@@ -26,7 +26,7 @@ USAGE='Usage: claude-auto-resume resume-at [when] [critical|normal|low]
   sessions). Default: the newest session in the workspace; "new" starts a
   fresh one.
   --prompt sets the message the resumed session receives (default:
-  "Limit reset. Continue from where you stopped. Check PROGRESS.md first.")
+  "Limit reset. Continue from where you stopped.")
   --workspace schedules for another project directory instead of the
   current one.'
 

@@ -48,7 +48,7 @@ const EVENT_GLYPH = {
 };
 
 const DEFAULT_PROMPT =
-  'Limit reset. Continue from where you stopped. Check PROGRESS.md first.';
+  'Limit reset. Continue from where you stopped.';
 
 const BRAND_SVG = `<svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="8" fill="#0B1220"/><path d="M9 4a5 5 0 1 0 5 5" fill="none" stroke="#F59E0B" stroke-width="1.8" stroke-linecap="round"/><path d="M14 3.5v3h-3z" fill="#F59E0B"/></svg>`;
 

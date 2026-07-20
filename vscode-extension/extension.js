@@ -558,7 +558,7 @@ async function scheduleResume(item) {
   }
   const prompt = await vscode.window.showInputBox({
     prompt: 'Message for the resumed session (leave empty for the default)',
-    placeHolder: 'Limit reset. Continue from where you stopped. Check PROGRESS.md first.',
+    placeHolder: 'Limit reset. Continue from where you stopped.',
   });
   const args = ['resume-at', when];
   if (prompt) args.push('--prompt', prompt);
