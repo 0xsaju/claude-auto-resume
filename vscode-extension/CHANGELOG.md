@@ -4,6 +4,17 @@ All notable changes to the Claude Standby Cockpit extension. The
 extension is a thin UI over the `claude-standby` terminal tool, so some
 entries describe tool behavior the cockpit now surfaces.
 
+## 0.9.0
+
+- **Renamed to Claude Standby.** The project was `claude-auto-resume`, which
+  collided with an unrelated same-named shell tool. New extension id
+  `claude-standby-cockpit`; the terminal tool is now `claude-standby`
+  (alias `cs`). If you had the old `claude-auto-resume-cockpit` extension,
+  uninstall it and install this one. No change to how the cockpit works.
+- **Git-free self-updates** (tool side): `claude-standby update` downloads
+  and swaps a validated copy instead of `git pull`, so a bad download never
+  leaves a broken install.
+
 ## 0.8.9
 
 - **Simpler default resume prompt.** Now "Limit reset. Continue from where
