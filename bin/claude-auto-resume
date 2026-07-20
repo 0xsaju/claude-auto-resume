@@ -60,6 +60,16 @@ car_gitrev() {
   git -C "$ROOT" rev-parse --short HEAD 2>/dev/null
 }
 
+# The old plugin packaging (removed 2026-07-19, D33) lives in Claude Code's
+# own plugin store — deleting our files can't remove it. True only for
+# pre-removal users who still have a trace of it.
+car_had_legacy_plugin() {
+  P="${CLAUDE_PLUGINS_DIR:-$HOME/.claude/plugins}"
+  grep -qs "claude-auto-resume" "$P/config.json" 2>/dev/null && return 0
+  grep -qs "claude-auto-resume@auto-resume" "${CLAUDE_SETTINGS_FILE:-$HOME/.claude/settings.json}" 2>/dev/null && return 0
+  [ -n "$(find "$P" -maxdepth 3 -name 'claude-auto-resume*' -print 2>/dev/null | head -1)" ]
+}
+
 CMD="${1:-status}"
 if [ $# -gt 0 ]; then shift; fi
 
@@ -211,8 +221,10 @@ EOF
     echo "Removed."
     echo "Kept your task state and logs. To remove them too:"
     echo "  rm -rf ~/.claude/auto-resume"
-    echo "Had the old Claude Code plugin? Remove it inside a session (it no longer ships):"
-    echo "  /plugin uninstall claude-auto-resume@auto-resume"
+    if car_had_legacy_plugin; then
+      echo "You still have the old Claude Code plugin. Remove it inside a session (it no longer ships):"
+      echo "  /plugin uninstall claude-auto-resume@auto-resume"
+    fi
     exit 0 ;;
 
   version|--version|-V)

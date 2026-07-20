@@ -30,6 +30,16 @@ LINK="$BIN_DIR/claude-auto-resume"
 say() { printf '%s\n' "$*"; }
 die() { printf 'install: %s\n' "$*" >&2; exit 1; }
 
+# The old plugin packaging (removed 2026-07-19, D33) lives in Claude Code's
+# own plugin store — deleting our files can't remove it. True only for
+# pre-removal users who still have a trace of it.
+had_legacy_plugin() {
+  P="${CLAUDE_PLUGINS_DIR:-$HOME/.claude/plugins}"
+  grep -qs "claude-auto-resume" "$P/config.json" 2>/dev/null && return 0
+  grep -qs "claude-auto-resume@auto-resume" "${CLAUDE_SETTINGS_FILE:-$HOME/.claude/settings.json}" 2>/dev/null && return 0
+  [ -n "$(find "$P" -maxdepth 3 -name 'claude-auto-resume*' -print 2>/dev/null | head -1)" ]
+}
+
 # Extract a fresh copy of the repo into $1 (an empty directory).
 # Prefers the tarball; an explicit CAR_REPO_URL (tests, forks) or a
 # machine without curl+tar uses git — as a downloader only, the .git
@@ -93,8 +103,10 @@ if [ "${1:-}" = "--uninstall" ]; then
   say ""
   say "Kept your runtime data (tasks, logs). To remove that too:"
   say "  rm -rf ~/.claude/auto-resume"
-  say "Had the old Claude Code plugin? Remove it inside a session (it no longer ships):"
-  say "  /plugin uninstall claude-auto-resume@auto-resume"
+  if had_legacy_plugin; then
+    say "You still have the old Claude Code plugin. Remove it inside a session (it no longer ships):"
+    say "  /plugin uninstall claude-auto-resume@auto-resume"
+  fi
   exit 0
 fi
 

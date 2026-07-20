@@ -907,15 +907,27 @@ if command -v git >/dev/null 2>&1 && [ -d "$ROOT/.git" ]; then
   t_eq "cli: uninstall refuses dirty dev checkout" "1" "$URC"
   t_contains "cli: uninstall names the guard" "development checkout" "$OUT"
   # same dirty tree as the installer-managed dir → proceeds, with a note
-  OUT="$(CAR_INSTALL_DIR="$ITMP/app" "$ITMP/bin/claude-auto-resume" uninstall --yes 2>&1)"
+  OUT="$(CAR_INSTALL_DIR="$ITMP/app" CLAUDE_PLUGINS_DIR="$ITMP/noplugins" CLAUDE_SETTINGS_FILE="$ITMP/nosettings.json" \
+    "$ITMP/bin/claude-auto-resume" uninstall --yes 2>&1)"
   t_contains "cli: managed uninstall notes local changes" "local changes" "$OUT"
   t_contains "cli: uninstall reports" "Removed" "$OUT"
+  # the legacy-plugin hint (D33) only appears for users who still have it
+  if printf '%s' "$OUT" | grep -q "/plugin uninstall"; then
+    fail "cli: no legacy-plugin hint without the plugin" "$OUT"
+  else
+    ok "cli: no legacy-plugin hint without the plugin"
+  fi
   [ ! -e "$ITMP/app" ] && [ ! -e "$ITMP/bin/claude-auto-resume" ] && ok "cli: uninstall removes app and link" \
     || fail "cli: uninstall removes app and link" "$(ls "$ITMP" "$ITMP/bin" 2>/dev/null)"
-  # reinstall, then the installer's own --uninstall path
+  # reinstall, then the installer's own --uninstall path — with a trace of
+  # the old plugin present, the hint appears
   CAR_TARBALL_URL="$TARBALL" CAR_INSTALL_DIR="$ITMP/app" CAR_BIN_DIR="$ITMP/bin" bash "$ROOT/install.sh" >/dev/null 2>&1
-  OUT="$(CAR_INSTALL_DIR="$ITMP/app" CAR_BIN_DIR="$ITMP/bin" bash "$ROOT/install.sh" --uninstall 2>&1)"
+  mkdir -p "$ITMP/plugins"
+  printf '{"repositories":{"x":"claude-auto-resume"}}\n' > "$ITMP/plugins/config.json"
+  OUT="$(CAR_INSTALL_DIR="$ITMP/app" CAR_BIN_DIR="$ITMP/bin" CLAUDE_PLUGINS_DIR="$ITMP/plugins" \
+    CLAUDE_SETTINGS_FILE="$ITMP/nosettings.json" bash "$ROOT/install.sh" --uninstall 2>&1)"
   t_contains "installer: uninstall reports" "Removed" "$OUT"
+  t_contains "installer: legacy-plugin hint when plugin present" "/plugin uninstall" "$OUT"
   [ ! -e "$ITMP/app" ] && [ ! -e "$ITMP/bin/claude-auto-resume" ] && ok "installer: uninstall removes app and link" \
     || fail "installer: uninstall removes app and link" "$(ls "$ITMP" "$ITMP/bin" 2>/dev/null)"
   rm -rf "$ITMP"

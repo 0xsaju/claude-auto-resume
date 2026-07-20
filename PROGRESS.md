@@ -235,3 +235,10 @@ by both `update` and `uninstall`. README/USER-GUIDE synced; 252 tests green
 refusals, version-transition message). Handoff: consider cutting a release
 tag and pointing the tarball at tags once a release flow exists (deferred
 in D36).
+
+**2026-07-20 (later still) — legacy-plugin hint made conditional.** Field
+confusion: uninstall's `/plugin uninstall claude-auto-resume@auto-resume`
+hint (for pre-D33 plugin users) printed unconditionally, reading as "we
+still ship a plugin." Both uninstall paths now print it only when a trace
+of the old plugin actually exists (Claude Code plugin store config/dirs or
+`enabledPlugins` in settings.json); 254 tests green.
