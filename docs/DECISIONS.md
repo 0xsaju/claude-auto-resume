@@ -723,3 +723,34 @@ unlocked (last-writer-wins lost-update, not corruption; each write is atomic)
 **Cosmetic:** status-bar idle label `auto-resume` → `Standby`; removed a
 stale old-named `.vsix` build artifact. +5 regression tests (clean-dev-checkout
 refusal, incomplete-download rejection); 259 green.
+
+## D39 — 2026-07-20 — Installs pull a release asset so downloads are countable
+
+**Problem.** No way to count CLI installs. The one-liner runs `install.sh`,
+which fetched the `main` branch archive (`/archive/refs/heads/main.tar.gz`).
+GitHub does not report a download count for raw files or auto-generated
+branch/tag archives — only for *uploaded* release assets. So the CLI, unlike
+the extension (Open VSX / VS Marketplace expose counts), had zero visibility.
+
+**Decision.** Publish a real tarball asset on a GitHub Release and point the
+installer at the stable "latest" URL:
+`https://github.com/0xsaju/claude-standby/releases/latest/download/claude-standby.tar.gz`.
+The asset filename is constant across releases, so `latest/download` always
+resolves to the newest release and the install URL never has to change.
+`gh api repos/0xsaju/claude-standby/releases` → each asset's `download_count`
+is the counter. No telemetry, no infra, no ping — the count is a byproduct of
+how installs already work. (Read it as install **+ update** activity, since
+`update` re-downloads the same asset; not unique users.)
+
+**No user-facing change.** The public one-liner still points at `install.sh`;
+only `TARBALL_URL` inside the script moved. `update` execs the *local*
+`install.sh` (bin/claude-standby → `install.sh --update`), so existing users
+self-heal on their next update: that first update still goes through their old
+branch-tarball installer (uncounted), which delivers the release-aware
+installer; every update after is counted. The count therefore starts slightly
+low and converges as people update.
+
+**Operational rule.** Cut a fresh release on every user-facing engine change,
+else `latest/download` lags `main`. Tests are unaffected — they override
+`CAR_TARBALL_URL`, so they never hit the default. Branch/git paths remain as
+fallbacks in `fetch_tree` for machines without curl+tar.

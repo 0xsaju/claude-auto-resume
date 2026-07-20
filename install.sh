@@ -22,7 +22,11 @@
 set -u
 
 REPO_URL="${CAR_REPO_URL:-https://github.com/0xsaju/claude-standby.git}"
-TARBALL_URL="${CAR_TARBALL_URL:-https://github.com/0xsaju/claude-standby/archive/refs/heads/main.tar.gz}"
+# Release asset (stable "latest" URL, always the newest published release).
+# This is a real uploaded asset, so GitHub reports its download_count — the
+# only reliable install/update counter (branch/tag archives are uncounted).
+# The asset filename stays constant across releases so this URL never changes.
+TARBALL_URL="${CAR_TARBALL_URL:-https://github.com/0xsaju/claude-standby/releases/latest/download/claude-standby.tar.gz}"
 INSTALL_DIR="${CAR_INSTALL_DIR:-$HOME/.claude-standby}"
 BIN_DIR="${CAR_BIN_DIR:-$HOME/.local/bin}"
 LINK="$BIN_DIR/claude-standby"
