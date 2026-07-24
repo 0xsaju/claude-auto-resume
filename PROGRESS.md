@@ -520,4 +520,6 @@ Verifier 1.409 reports `io.github.0xsaju.claudestandby:0.9.6` compatible with
 IC-233.15026.9 and probably dynamically loadable. The upload ZIP is generated
 under `jetbrains-plugin/build/distributions/` and remains ignored like the
 VSIX. Version guards now cover CLI, VS Code, and JetBrains. Publishing stays a
-manual owner action documented in `docs/PUBLISHING.md`.
+manual owner action documented in `docs/PUBLISHING.md`. The initial 0.9.6
+release is now live at
+https://plugins.jetbrains.com/plugin/33111-claude-standby.

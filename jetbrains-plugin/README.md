@@ -18,6 +18,13 @@ The plugin checks PATH, `~/.local/bin/claude-standby`, and
 `~/.claude-standby/bin/claude-standby`. Override the executable under
 **Settings → Tools → Claude Standby**.
 
+## Install
+
+Install **Claude Standby** from the
+[JetBrains Marketplace](https://plugins.jetbrains.com/plugin/33111-claude-standby),
+or use **Settings → Plugins → ⚙ → Install Plugin from Disk…** with a locally
+built distribution.
+
 ## Build
 
 ```sh

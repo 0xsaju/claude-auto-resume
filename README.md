@@ -14,6 +14,7 @@ session with context, and never makes you babysit a terminal again.
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 [![VS Marketplace](https://img.shields.io/badge/VS_Marketplace-Install-0066b8?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=0xsaju.claude-standby-cockpit)
 [![Open VSX](https://img.shields.io/badge/Open_VSX-Install-a60ee5)](https://open-vsx.org/extension/0xsaju/claude-standby-cockpit)
+[![JetBrains Marketplace](https://img.shields.io/jetbrains/plugin/v/33111?label=JetBrains)](https://plugins.jetbrains.com/plugin/33111-claude-standby)
 
 [Install](#installation) · [Quick start](#quick-start) ·
 [Commands](#commands) · [How it works](#how-it-works) ·
@@ -106,9 +107,9 @@ logs, diagnostics, and update checks:
 
 - **VS Code** → **[Marketplace](https://marketplace.visualstudio.com/items?itemName=0xsaju.claude-standby-cockpit)**
 - **Cursor / Windsurf / VSCodium** → **[Open VSX](https://open-vsx.org/extension/0xsaju/claude-standby-cockpit)**
-- **IntelliJ IDEA / PyCharm / WebStorm / other JetBrains IDEs** → native
-  tool-window plugin in [`jetbrains-plugin/`](jetbrains-plugin/) (Marketplace
-  listing pending; build/install instructions are included there)
+- **IntelliJ IDEA / PyCharm / WebStorm / other JetBrains IDEs** →
+  **[JetBrains Marketplace](https://plugins.jetbrains.com/plugin/33111-claude-standby)**
+  (native tool-window source in [`jetbrains-plugin/`](jetbrains-plugin/))
 
 The cockpits drive the CLI; they never spawn or parse Claude Code itself.
 

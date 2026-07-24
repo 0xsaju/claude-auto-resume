@@ -54,7 +54,8 @@ The `.vsix` is gitignored (build artifact). `.vscodeignore` keeps dev files
 ## JetBrains Marketplace
 
 The JetBrains adapter is a separate native IntelliJ Platform plugin; a VSIX
-cannot be uploaded to JetBrains Marketplace.
+cannot be uploaded to JetBrains Marketplace. Its public listing is
+https://plugins.jetbrains.com/plugin/33111-claude-standby.
 
 Build and verify it:
 
