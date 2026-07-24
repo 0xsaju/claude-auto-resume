@@ -439,3 +439,48 @@ Handoff: all uncommitted (working tree). Repackaged the 0.9.4 vsix. Still
 pending owner action: cut the v0.9.4 engine release + publish the vsix
 (marketplace secrets). Optional follow-up to make stream-json safe-by-default:
 measure real claude's stream-json limit output → HOOK-FINDINGS, then default on.
+
+## 2026-07-24 (later) — Live-testing fixes (D47), engine + extension 0.9.5
+
+First real end-to-end cockpit-driven resume test (VS Code, DeenMate) found two
+reproducible bugs; both fixed and released as **0.9.5** (engine VERSION +
+extension package.json, in lockstep).
+
+1. **Headless resume hung forever at `resuming`.** The daemon, spawned by the
+   VS Code extension, inherited the editor's environment (`VSCODE_*`,
+   `__CFBundleIdentifier`, the `~/.claude/ide/*.lock` targeting the same
+   workspace), so `claude -p` decided it was inside an IDE, opened a bridge
+   (`bridge-session` marker), answered the prompt, then never exited — the
+   daemon blocked on the resume and the cockpit showed a permanent "running
+   headless". Proven by process/env inspection; the trivial prompt "you are
+   claude right?" reproduced it every time. **Fix:** `do_resume` strips every
+   editor signal (`VSCODE_*`/`CLAUDE_CODE_*`/`CURSOR_*`/`__CF*` via portable
+   `env | grep -oE` — NOT `sed \|`, a GNU-only alternation, C2 — plus
+   `TERM_PROGRAM*`/`ENABLE_IDE_INTEGRATION`) before exec, so it runs as a plain
+   CLI. **Validated:** same `claude -p` with the env stripped answered `OK` and
+   exited in 6 s (vs. hanging). A stall/timeout watchdog (transcript-mtime
+   progress signal) is a deferred defense-in-depth follow-up.
+2. **Composer reset to defaults while typing / setting a time.** The D44
+   no-clobber guard keyed on `focusout`/`relatedTarget`; on macOS a `<button>`
+   takes no focus on click, so clicking a chip / AM–PM segment / Schedule
+   blurred the field to `null` `relatedTarget`, read as "done editing", and the
+   next poll rebuilt the HTML and snapped fields to defaults. **Fix:** track
+   editing by interaction (document-level `mousedown`/`focusin` whose target
+   `.closest('.composer')`), and clear it after a successful schedule so the
+   panel refreshes.
+
+Also found, **deferred (open):** `cancel` reported success but didn't reliably
+reap a daemon blocked on a hung resume child (force-killed by hand) — lower
+priority now the hang's root cause is gone; needs a fake-claude repro. No
+state.json schema change.
+
+**Deploy note:** during the live session the fixes were also hot-patched into
+the *installed* copies (`~/.claude-standby/plugin/scripts/daemon.sh` env-strip;
+the installed extension's `dashboard.js`) so the user could re-test immediately;
+the source tree is the authority and is what ships in 0.9.5.
+
+Handoff: publish flow is `ext-v0.9.5` tag → `publish-extension.yml` (runs the
+suite, packages, publishes to VS Marketplace + Open VSX **if** the
+VSCE_PAT/OVSX_TOKEN repo secrets exist — still the standing blocker; skips
+gracefully otherwise). Cut a fresh engine GitHub Release (D39 rule) so
+`latest/download` serves 0.9.5. C6 real-limit `--resume` proof still open.

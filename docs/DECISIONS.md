@@ -1052,3 +1052,54 @@ docs; this entry is the changelog-style summary the project convention
 or `C6` (fake-claude-only iterative testing) — the audit found no violation
 of either. VERSION stays `0.9.4` pending a deliberate release decision; the
 schema is `3` as of this remediation.
+
+## D47 — 2026-07-24 — Live-testing fixes: headless resume must not attach to the editor; composer guard tracks interaction
+
+First real end-to-end test of the cockpit driving a live resume (VS Code,
+DeenMate workspace) surfaced two reproducible bugs. Both fixed; released as
+engine + extension **0.9.5**.
+
+**1. Resume answered but never finished — stuck at `resuming` forever.** The
+daemon runs `claude --resume <id> -p "<prompt>"` and waits (synchronously,
+via the live-file redirect) for it to exit before writing the outcome. In the
+live test the resume produced its answer in ~13 s, appended it to the session,
+then **hung** — the process sat idle in state `S` with no further writes, so
+the daemon blocked and the cockpit showed a permanent "running headless".
+Root cause, proven by inspecting the hung process's environment: the daemon
+was spawned by the VS Code extension and **inherited the editor's whole
+environment** (`VSCODE_*`, `__CFBundleIdentifier=com.microsoft.VSCode`, the
+IDE lock at `~/.claude/ide/<pid>.lock` targeting the same workspace). `claude`
+therefore decided it was running inside an IDE, opened an IDE bridge (wrote a
+`bridge-session` marker to the transcript over `ws`), and never tore it down
+after answering. Decisive check: with the editor env stripped, the same
+`claude -p` in the same workspace answered `OK` and **exited in 6 s** — the
+bridge is not re-established from the lock file alone once the env is clean.
+
+**Fix.** `do_resume` strips every editor signal
+(`VSCODE_*`/`CLAUDE_CODE_*`/`CURSOR_*`/`__CF*` via `env | grep -oE` — BSD/GNU
+portable per C2, NOT `sed \|` which is a GNU-only alternation — plus
+`TERM_PROGRAM`/`TERM_PROGRAM_VERSION`/`ENABLE_IDE_INTEGRATION`) inside the
+resume subshell before exec, so an unattended resume always runs as a plain
+CLI and exits cleanly. This is the actual cure; a stall/timeout watchdog on
+the resume call (defense-in-depth for any *other* hang cause, using transcript
+mtime as the progress signal so a legitimately long silent task isn't reaped)
+is a deferred follow-up, not required now that the hang's root cause is gone.
+
+**2. Composer reset to defaults while typing / changing the time.** The
+D44 no-clobber guard paused the auto-refresh via `focusout`/`relatedTarget`:
+"editing ends when focus leaves the composer." On macOS a `<button>` does not
+take focus when clicked, so clicking a chip, the AM/PM segment, or Schedule
+blurred the text field to `null` `relatedTarget` — read as "done editing" —
+and the next poll rebuilt the whole webview, snapping prompt/time back to
+server defaults. Fix: track editing by **interaction**, not focus target — a
+document-level capture `mousedown` and `focusin` set editing on/off by whether
+the event target is `.closest('.composer')`, so clicking the composer's own
+buttons keeps it active; a successful schedule clears the flag so the panel
+refreshes to show the new item.
+
+**Also found, deferred (open):** `cancel` reported success but did not always
+reap a daemon that was blocked waiting on a hung resume child — the wedged
+tree had to be force-killed by hand. Lower priority now that fix #1 prevents
+the hang that made cancel-of-a-hung-resume necessary; to be fixed with a
+fake-claude repro (a resume child that ignores the daemon's signal) in a
+follow-up. No state.json schema change in 0.9.5.

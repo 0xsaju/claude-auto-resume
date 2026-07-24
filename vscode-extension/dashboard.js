@@ -1208,19 +1208,25 @@ ${body}
         session: $('.session-select', comp).value || undefined,
         prompt: (p && p !== DEFAULT_PROMPT) ? p : undefined,
       });
+      setEditing(false); // scheduling done — let the panel refresh to show it
     });
   }
-  $$('.composer').forEach(wireComposer);
 
-  // Pause auto-refresh while a composer is focused so a poll can't rebuild the
-  // HTML mid-typing and reset the fields. focusout fires as focus MOVES; only
-  // treat it as "done" when focus actually left this composer.
-  $$('.composer').forEach((c) => {
-    c.addEventListener('focusin', () => send('editing', { active: true }));
-    c.addEventListener('focusout', (e) => {
-      if (!c.contains(e.relatedTarget)) send('editing', { active: false });
-    });
-  });
+  // Pause auto-refresh whenever the user is INTERACTING with a composer, so a
+  // background poll can't rebuild the HTML and wipe an in-progress prompt/time.
+  // Track by interaction, NOT input focus: clicking a chip, an AM/PM segment or
+  // Schedule blurs the text field to a non-focusable element (on macOS, buttons
+  // don't take focus on click), which a focus-only guard misreads as "done
+  // editing" — it then rebuilds mid-edit and snaps the fields back to defaults.
+  // Editing stays active while focus OR the last pointer press is inside a
+  // composer; it clears only when focus/click lands outside every composer.
+  let _editSent = false;
+  const inComposer = (el) => !!(el && el.closest && el.closest('.composer'));
+  const setEditing = (v) => { v = !!v; if (v !== _editSent) { _editSent = v; send('editing', { active: v }); } };
+  document.addEventListener('focusin', (e) => setEditing(inComposer(e.target)));
+  document.addEventListener('mousedown', (e) => setEditing(inComposer(e.target)), true);
+
+  $$('.composer').forEach(wireComposer);
 
   // cancel buttons
   $$('.act-cancel').forEach((b) => b.addEventListener('click', () => send('cancel', { ws: b.dataset.ws })));

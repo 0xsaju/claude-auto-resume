@@ -4,17 +4,29 @@ All notable changes to the Claude Standby Cockpit extension. The
 extension is a thin UI over the `claude-standby` terminal tool, so some
 entries describe tool behavior the cockpit now surfaces.
 
-## Unreleased
+## 0.9.5
 
+- **Headless resume no longer hangs at "resuming" (D47).** When the daemon
+  was spawned from the VS Code/Cursor extension it inherited the editor's
+  environment, so `claude -p` decided it was inside an IDE, opened a bridge,
+  and never exited after answering — the task stayed pinned at `resuming`
+  forever and the cockpit could not show it finishing. The daemon now strips
+  every editor signal (`VSCODE_*`, `CLAUDE_CODE_*`, `CURSOR_*`, `__CF*`,
+  `TERM_PROGRAM`) before invoking the resume, so it runs as a plain CLI and
+  exits cleanly. Found and fixed during live testing.
+- **Composer no longer resets while you type or set a time (D47).** The
+  auto-refresh guard tracked which element held focus; on macOS, clicking a
+  chip, the AM/PM segment, or Schedule blurs the field to a non-focusable
+  button, which the old guard misread as "done editing" and rebuilt the HTML
+  mid-edit — snapping your prompt/time back to defaults. It now tracks
+  interaction (pointer/focus inside the composer) instead, and refreshes only
+  once you click away.
 - **Audit remediation (2026-07-24, D46).** A 36-finding independent audit
   landed a batch of engine/cockpit hardening fixes — see `docs/DECISIONS.md`
   D46 for the full list (session-resolution fail-closed, reschedule
   preemption, numeric safety-rail validation, statusline sensor no-clobber,
-  webview escaping, terminal-argument quoting, and more). `package.json`
-  stays at `0.9.4` pending a release version bump; **the checked-in
-  `claude-standby-cockpit-0.9.4.vsix` predates this batch and must be
-  rebuilt from the current source tree before the next publish** (F31) —
-  do not ship the stale artifact.
+  webview escaping, terminal-argument quoting, and more).
+- The published `.vsix` is rebuilt from the current source tree (F31).
 
 ## 0.9.4
 

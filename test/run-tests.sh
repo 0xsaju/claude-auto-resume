@@ -921,7 +921,11 @@ DPID=$!
 wait_until 20 'ar_journal_show "$WS24" 5 | grep -q grace'
 # reschedule an hour ahead WHILE the old daemon is sitting in its grace sleep
 (cd "$WS24" && AR_NO_DAEMON=1 bash "$PLUGIN/scripts/task-resume-at.sh" 1h normal --session new >/dev/null)
-wait "$DPID" 2>/dev/null
+# The daemon preempts the stale resume (journals "rescheduled") and then stays
+# alive to service the NEW +1h schedule — it does NOT exit. Wait for the
+# preempt to land, then stop it; a bare `wait` would block for the full hour.
+wait_until 20 'ar_journal_show "$WS24" 10 | grep -q rescheduled'
+kill "$DPID" 2>/dev/null; wait "$DPID" 2>/dev/null
 t_eq "F05: reschedule during grace leaves the NEW schedule waiting" "waiting" "$(ar_task_get "$WS24" status)"
 t_contains "F05: reschedule during grace preempts the stale resume before it executes" \
   "rescheduled" "$(ar_journal_show "$WS24" 10)"

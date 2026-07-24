@@ -243,8 +243,19 @@ do_resume() {
     return 2
   fi
   ar_log "daemon[$$]: exec $CLAUDE_BIN $fmt $* $EXTRA_ARGS (attempt $attempt)"
+  # A headless background resume must NOT attach to an editor. When the daemon is
+  # spawned from the VS Code/Cursor extension it inherits the editor's whole
+  # environment; claude then decides it is running inside an IDE, opens a bridge
+  # (writes a "bridge-session" to the transcript) and never exits after answering
+  # — pinning the task at 'resuming' forever. Strip every IDE signal so the resume
+  # runs as a plain CLI and exits cleanly (grep -oE for BSD/GNU portability, C2).
   # shellcheck disable=SC2086
-  ( cd "$WS" 2>/dev/null && "$CLAUDE_BIN" $fmt "$@" $EXTRA_ARGS ) >"$live" 2>&1
+  ( cd "$WS" 2>/dev/null || exit 127
+    for _v in $(env | grep -oE '^(VSCODE|CLAUDE_CODE|CURSOR|__CF)[A-Za-z0-9_]*'); do
+      unset "$_v" 2>/dev/null
+    done
+    unset TERM_PROGRAM TERM_PROGRAM_VERSION ENABLE_IDE_INTEGRATION 2>/dev/null
+    "$CLAUDE_BIN" $fmt "$@" $EXTRA_ARGS ) >"$live" 2>&1
   rc=$?
   out="$(cat "$live" 2>/dev/null)"
   RESUME_OUT="$out"
