@@ -1291,6 +1291,8 @@ if command -v node >/dev/null 2>&1; then
   EXT_VER="$(node -p "require('$HERE/../vscode-extension/package.json').version")"
   t_eq "release: CLI and extension versions stay aligned" "$MANIFEST_VER" "$EXT_VER"
 fi
+JETBRAINS_VER="$(sed -n 's/^pluginVersion=//p' "$HERE/../jetbrains-plugin/gradle.properties")"
+t_eq "release: CLI and JetBrains plugin versions stay aligned" "$MANIFEST_VER" "$JETBRAINS_VER"
 DOUT="$(CLAUDE_STANDBY_CLAUDE_BIN="$HERE/fake-claude.sh" bash "$CLI" doctor)"
 DRC=$?
 t_eq "cli: doctor exits 0 when healthy" "0" "$DRC"

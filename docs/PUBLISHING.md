@@ -1,4 +1,9 @@
-# Publishing the VS Code extension
+# Publishing the IDE extensions
+
+All IDE extension publication is manual. No workflow in this repository
+publishes to a marketplace.
+
+## VS Code family
 
 The cockpit (`vscode-extension/`) ships to **two** registries, because
 VS Code and Cursor/Windsurf/VSCodium use different ones:
@@ -46,12 +51,42 @@ The `.vsix` is gitignored (build artifact). `.vscodeignore` keeps dev files
    npx ovsx publish claude-standby-cockpit-<version>.vsix -p <OVSX_TOKEN>
    ```
 
+## JetBrains Marketplace
+
+The JetBrains adapter is a separate native IntelliJ Platform plugin; a VSIX
+cannot be uploaded to JetBrains Marketplace.
+
+Build and verify it:
+
+```sh
+cd jetbrains-plugin
+./gradlew clean buildPlugin verifyPluginProjectConfiguration verifyPlugin
+```
+
+The uploadable archive is
+`build/distributions/claude-standby-jetbrains-<version>.zip`. It is ignored by
+git. Before submission, install it in a clean target IDE with **Settings →
+Plugins → ⚙ → Install Plugin from Disk…** and exercise every action.
+
+JetBrains recommends signing the archive before Marketplace publication.
+Keep the certificate chain/private key outside git, expose them locally as
+`CERTIFICATE_CHAIN`, `PRIVATE_KEY`, and `PRIVATE_KEY_PASSWORD`, and run
+`./gradlew signPlugin`. Never commit signing material.
+
+For the first publication, sign in at https://plugins.jetbrains.com/, create
+or select the vendor profile, accept the Marketplace Developer Agreement, and
+choose **Upload plugin**. Upload the ZIP manually and provide the license/EULA,
+source URL, description, tags, and compatible products. JetBrains reviews new
+plugins and updates before they become public.
+
 ## Release checklist
 
 - [ ] `bash test/run-tests.sh` green
-- [ ] bump `VERSION` and `vscode-extension/package.json` to the same version
+- [ ] bump `VERSION`, `vscode-extension/package.json`, and
+      `jetbrains-plugin/gradle.properties` to the same version
 - [ ] rebuild the `.vsix` (above)
 - [ ] `vsce publish` (Marketplace) and `ovsx publish` (Open VSX)
+- [ ] rebuild, verify, locally install, and manually upload the JetBrains ZIP
 - [ ] tag the release in git and note the version in `PROGRESS.md`
 
 ## Requirements already satisfied

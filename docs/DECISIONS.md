@@ -1129,3 +1129,25 @@ host-local maintenance state at `~/.claude/auto-resume/update-check`.
 **Release.** CLI and cockpit move together to 0.9.6, with the normal test CI
 enforcing version equality. Extension publication remains the owner's manual
 Marketplace/Open VSX process; no CI publishing dependency is introduced.
+
+## D49 — 2026-07-24 — JetBrains gets a native thin adapter, not a repackaged VSIX
+
+**Problem.** JetBrains Marketplace cannot consume the VS Code extension
+format or APIs. Renaming the VSIX would produce neither a loadable nor a
+reviewable IntelliJ Platform plugin.
+
+**Decision.** Add `jetbrains-plugin/`, a Java 17 IntelliJ Platform plugin
+built with Gradle and JetBrains' 2.x platform build plugin. It provides a
+native tool window and Tools-menu action for status, scheduling, cancellation,
+logs, diagnostics, CLI update checks, and IDE-level CLI path configuration.
+Like the VS Code cockpit (D21), it never reimplements task state or invokes
+Claude Code: every operation is an argument-vector call to `claude-standby`
+in the current project.
+
+Depend only on `com.intellij.modules.platform`, compile against the 2023.3.6
+baseline (`since-build=233`), and omit an upper build bound so stable platform
+APIs can reach IntelliJ IDEA, PyCharm, WebStorm, and other IntelliJ-based IDEs.
+JetBrains Plugin Verifier is part of the release check. CLI, VS Code, and
+JetBrains versions stay aligned. Marketplace publishing remains manual; ZIP
+distributions are ignored build artifacts, while the complete adapter source
+and Gradle wrapper are versioned.

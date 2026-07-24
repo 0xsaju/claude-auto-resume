@@ -1,0 +1,52 @@
+<idea-plugin>
+    <id>io.github.0xsaju.claudestandby</id>
+    <name>Claude Standby</name>
+    <version>0.9.6</version>
+    <vendor email="mdshossain96@gmail.com"
+            url="https://github.com/0xsaju">0xsaju</vendor>
+
+    <description><![CDATA[
+      <p>A native JetBrains cockpit for the <code>claude-standby</code>
+      command-line tool.</p>
+      <p>Inspect the current workspace, schedule a Claude Code resume, cancel
+      pending work, inspect logs, run diagnostics, and check for CLI updates
+      without leaving the IDE.</p>
+      <p>The plugin is a thin UI adapter. Scheduling and state changes always
+      go through the installed CLI, so terminal and IDE users share the same
+      engine and task state.</p>
+    ]]></description>
+
+    <change-notes><![CDATA[
+      <p><b>0.9.6</b></p>
+      <ul>
+        <li>Initial JetBrains Platform release.</li>
+        <li>Native tool window for status, scheduling, cancellation, logs,
+        diagnostics, and CLI update checks.</li>
+        <li>Configurable CLI executable path with safe argument-vector
+        execution.</li>
+      </ul>
+    ]]></change-notes>
+
+    <idea-version since-build="233"/>
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Claude Standby"
+                    anchor="right"
+                    icon="/icons/standby.svg"
+                    factoryClass="io.github.xsaju.claudestandby.ClaudeStandbyToolWindowFactory"/>
+        <applicationConfigurable id="io.github.0xsaju.claudestandby.settings"
+                                 parentId="tools"
+                                 displayName="Claude Standby"
+                                 instance="io.github.xsaju.claudestandby.ClaudeStandbyConfigurable"/>
+    </extensions>
+
+    <actions>
+        <action id="io.github.0xsaju.claudestandby.OpenDashboard"
+                class="io.github.xsaju.claudestandby.OpenDashboardAction"
+                text="Claude Standby"
+                description="Open the Claude Standby dashboard">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>

@@ -65,6 +65,8 @@ path was removed 2026-07-19 (D31): detection reads local data, not hooks.
 - `install.sh` — curl-pipe-bash installer; links the CLI (no hooks, no plugin)
 - `vscode-extension/` — cockpit MVP: plain JS, reads state.json, writes
   via CLI (D21); keep it thin, no build tooling
+- `jetbrains-plugin/` — native IntelliJ Platform cockpit: Java 17 + Gradle,
+  platform-only dependency, all state changes routed through the CLI (D49)
 - `test/fake-claude.sh` — claude CLI stub; `test/run-tests.sh` — test suite
 - `docs/USER-GUIDE.md` — user manual (keep in sync with behavior changes)
 - `docs/ARCHITECTURE.md` — full design; `docs/DECISIONS.md` — append-only

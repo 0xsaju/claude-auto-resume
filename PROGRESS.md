@@ -505,3 +505,19 @@ background children/zombies must be tested using the detached production
 lifecycle. The complete suite is green at 398 passing tests and the README badge
 now reflects that count. Remaining owner release actions are to manually
 package/publish the extension and cut the v0.9.6 engine release asset.
+
+## 2026-07-24 (night) — Native JetBrains cockpit, v0.9.6 (D49)
+
+Added `jetbrains-plugin/`, a real IntelliJ Platform adapter rather than a
+renamed VSIX. The Java 17 plugin uses only the platform module and keeps the
+CLI as the single engine: its native tool window supports status, schedule,
+cancel, recent logs, doctor, forced update checks, and an IDE-level CLI path
+setting. It targets the 2023.3 baseline with no upper build bound and includes
+the Gradle 9.5 wrapper plus Marketplace metadata/icons.
+
+`buildPlugin` and `verifyPluginProjectConfiguration` pass. JetBrains Plugin
+Verifier 1.409 reports `io.github.0xsaju.claudestandby:0.9.6` compatible with
+IC-233.15026.9 and probably dynamically loadable. The upload ZIP is generated
+under `jetbrains-plugin/build/distributions/` and remains ignored like the
+VSIX. Version guards now cover CLI, VS Code, and JetBrains. Publishing stays a
+manual owner action documented in `docs/PUBLISHING.md`.

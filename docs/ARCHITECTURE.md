@@ -44,12 +44,16 @@ the `haiku` probe path. Note: this reset time is **not** in any Stop/
 SessionEnd hook payload (F4 measured that; it's why the hook path was
 dropped) — only the status-line stream carries it.
 
-### Cockpit — VS Code extension (`vscode-extension/`)
+### Cockpits — IDE adapters
 
-A pure UI shell (published on VS Marketplace + Open VSX): status bar over
-the state file, quick-pick actions, and install onboarding. Reads come from state.json;
-writes go through the CLI (D21). It never spawns or parses Claude Code
-itself.
+Both adapters stay thin and route state changes through the CLI (D21). The
+VS Code adapter (`vscode-extension/`, published on VS Marketplace + Open VSX)
+uses a status bar, webview dashboard, quick-pick actions, and install
+onboarding. The JetBrains adapter (`jetbrains-plugin/`) is a native IntelliJ
+Platform tool window with status, schedule, cancel, log, doctor, and update
+actions. It targets the platform module rather than a language/product module,
+so the same ZIP can run across IntelliJ-based IDEs. Neither adapter spawns or
+parses Claude Code itself.
 
 ### Contract — `~/.claude/auto-resume/state.json`
 

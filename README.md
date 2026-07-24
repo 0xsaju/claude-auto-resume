@@ -10,7 +10,7 @@ session with context, and never makes you babysit a terminal again.
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)
 ![Version](https://img.shields.io/badge/version-0.9.6-informational)
-![Tests](https://img.shields.io/badge/tests-398%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-399%20passing-brightgreen)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 [![VS Marketplace](https://img.shields.io/badge/VS_Marketplace-Install-0066b8?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=0xsaju.claude-standby-cockpit)
 [![Open VSX](https://img.shields.io/badge/Open_VSX-Install-a60ee5)](https://open-vsx.org/extension/0xsaju/claude-standby-cockpit)
@@ -99,17 +99,18 @@ claude-standby uninstall    # remove cleanly (keeps your task state)
 > **Windows**: best-effort via WSL/Git Bash for now; native support
 > (Task Scheduler) is on the roadmap.
 
-### The cockpit (optional GUI)
+### The cockpits (optional GUI)
 
-A thin VS Code / Cursor panel over the same CLI — status bar, one-click
-scheduling, and a dashboard. Install from your editor's Extensions view
-(search **"Claude Standby"**), or directly:
+Thin IDE panels over the same CLI provide status, scheduling, cancellation,
+logs, diagnostics, and update checks:
 
 - **VS Code** → **[Marketplace](https://marketplace.visualstudio.com/items?itemName=0xsaju.claude-standby-cockpit)**
 - **Cursor / Windsurf / VSCodium** → **[Open VSX](https://open-vsx.org/extension/0xsaju/claude-standby-cockpit)**
+- **IntelliJ IDEA / PyCharm / WebStorm / other JetBrains IDEs** → native
+  tool-window plugin in [`jetbrains-plugin/`](jetbrains-plugin/) (Marketplace
+  listing pending; build/install instructions are included there)
 
-On first run it offers to install the CLI above for you. The cockpit drives
-the CLI; it never spawns or parses Claude Code itself.
+The cockpits drive the CLI; they never spawn or parse Claude Code itself.
 
 ## Quick start
 
